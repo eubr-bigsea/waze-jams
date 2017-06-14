@@ -2,23 +2,31 @@ REQUIREMENTS
 ------------
 
 In order to use this code, there are two requirements:
+
 	1- Octave (version 4.0.0)
+	
 	2- GPML (version 3.5)
 
 Using different versions may lead to inconsistencies!
 
 GPML must also be in the Octave path, so that its functions can be accessed anywhere.
 For that:
+
 	1- Enter Octave
+	
 	2- Generate the path to GPML using "s=genpath(<full-path-to-GPML>)"
+	
 	3- Add the path to Octave path using "addpath(s)"
+	
 	4- Save path to ~/.octaverc so that we don't have to do it again using "savepath()"
 
 USAGE
 -----
 
 There are two scripts associated with this project, one for training and the other for testing:
+
 	1- trainGP.m: hyperparameter optimization and estimation of predictions for the training set
+	
 	2- testGP.m: prediction of future traffic jams
 
 The proposed model uses spatio-temporal data. On other words, it assumes we have a 3D grid of binary observations (existence or not of traffic jams), where 2 dimensions are associated with a MxM spatial grid and the remaining dimension is associated with time.
