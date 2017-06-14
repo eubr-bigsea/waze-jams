@@ -1,3 +1,5 @@
+The scripts in this repository were designed to train and test a spatio-temporal Gaussian process-based model for forecasting traffic congestions using Waze data.
+
 REQUIREMENTS
 ------------
 
