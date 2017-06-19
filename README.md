@@ -25,23 +25,28 @@ For that:
 USAGE
 -----
 
-There are two scripts associated with this project, one for training and the other for testing:
+There are two scripts associated with this project, one for generating a configuration file and the other for fitting the model:
 
-	1- trainGP.m: hyperparameter optimization and estimation of predictions for the training set
+	1- prepare.m: generates configuration file config.txt
 	
-	2- testGP.m: prediction of future traffic jams
+	2- runGP.m: hyperparameter optimization and inference
 
 The proposed model uses spatio-temporal data. On other words, it assumes we have a 3D grid of binary observations (existence or not of traffic jams), where 2 dimensions are associated with a MxM spatial grid and the remaining dimension is associated with time.
 
-To train the model (hyperparameter learning), one must provide a training set as input. To avoid passing 3D grids, which may difficult to format correctly, this training set must consist of a Nx(M^2) matrix, where N is the number of observations per cell (remember: each observation corresponds to a moment in time). Therefore, each collum corresponds to a spatial grid cell and the values on each collum are observations associated with the corresponding cell. Collums are also expected to be ordered such that row-wise. On the other hand, the first M collumns are associated with the first row of the MxM spatial grid, the next M collumns are associated with the second row, an so on.
+To generate the configuration file, one must provide a dataset as input. To avoid passing 3D grids, which may difficult to format correctly, this training set must consist of a Nx(M^2) matrix, where N is the number of observations per cell (remember: each observation corresponds to a moment in time). Therefore, each collum corresponds to a spatial grid cell and the values on each collum are observations associated with the corresponding cell. Collums are also expected to be ordered such that row-wise. On the other hand, the first M collumns are associated with the first row of the MxM spatial grid, the next M collumns are associated with the second row, an so on.
 
-The training script (runGPInference.m) outputs three files: yhat_fitting.txt, yvar_fitting.txt and hyp_fitting.txt. The first file consists of a Nx(M^2) matrix with estimates issued by the model for the training set. Predictions are in the interval [-1,+1], where predictions closer to -1 indicate greater probability of being associated with label -1 and predictions closer to +1 indicate the opposite scenario. These predictions can be turned into probabilities by turning them into the interval [0,1] (by summing 1 and then diving them by 2). The second output file also consists of a Nx(M^2) matrix of variances associated with predictions. Finally, the third file consists of a 7xM matrix with learned hyperparameters via likelihood maximization.
+The configuration script (prepare.m) outputs one file: config.txt. It contains both the data to be used for hyperparameter learning and inference as information regarding the GP prior distribution (prior mean, covariance and likelihood function and inference method).
 
-To test the model, one must provide the training set, the test set (both in the same format as before) and the hyperparameters obtained after likelihood maximization. It outputs two files: yhat_forecasting.txt and yvar_forecasting.txt. The first file consists of a Tx(M^2) matrix, where T is the number of testing instances in the test set, containing the forecasts issued by the model. The second file consists of a Tx(M^2) matrix with predictive variances.
+The execution script (runGP.m) takes as input the configuration file and the number of the cell grid for which hyperparameter learning and inference is required. It outputs two files: forecasts_N.txt and hypers_N.txt, where N is the number of the cell grid given as input. The first file contains a Tx2 matrix with predictive mean and variance, where T is the number of time intervals required for testing. Predictions are in the interval [-1,+1], where predictions closer to -1 indicate greater probability of being associated with label -1 and predictions closer to +1 indicate the opposite scenario. These predictions can be turned into probabilities by turning them into the interval [0,1] (by summing 1 and then diving them by 2). The second output file consists of a vector with learned hyperparameters.
 
 DEMO
 ----
 
-Two sample files have been added to guide formatting new train and test files and testing of the code. The file sample_train.txt contains data of a 50x50 spatial grid with hourly observations for 28 days (on a total of 672 observations per grid cell). The file sample_test.txt contains data of the same spatial grid for the following 7 days (on a total of 168 observations per grid cell).
+A sample file has been added to guide formatting new datafiles and testing of the code. The file sample.txt contains data of a 50x50 spatial grid with hourly observations for 28 days (on a total of 672 observations per grid cell).
 
-Training and test using this files takes hours (possibly more than a day), so feel free to produce smaller datasets (perharps a week for training and one day for testing) to speed up both procedures.
+For testing, run:
+
+	1- octave prepare.m sample.txt
+	2- octave runGP.m config.txt N
+
+where N is the number of a cell grid (1 <= N <= 2500).
