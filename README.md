@@ -46,7 +46,7 @@ A sample file has been added to guide formatting new datafiles and testing of th
 
 For testing, run:
 
-	1- octave prepare.m sample.txt
+	1- octave prepare.m sample_train.txt
 	2- octave runGP.m config.txt N
 
 where N is the number of a cell grid (1 <= N <= 2500).
