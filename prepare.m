@@ -1,5 +1,5 @@
 % Input: path to datafile and number of training instances (optional)
-datafile = argv(){1};
+datafile = argv(){1}; %%%%%%%
 if (length(argv()) >= 2), Ntrain = str2num(argv(){2}); else, Ntrain = -1; end
 
 % Defining prior structure

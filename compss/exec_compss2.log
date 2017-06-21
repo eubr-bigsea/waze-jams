@@ -1,0 +1,20 @@
+Ter Jun 20 19:36:01 BRT 2017
+[  INFO] Using default execution type: compss
+[  INFO] Using default location for project file: /opt/COMPSs/COMPSs/Runtime/configuration/xml/projects/default_project.xml
+[  INFO] Using default location for resources file: /opt/COMPSs/COMPSs/Runtime/configuration/xml/resources/default_resources.xml
+
+----------------- Executing waze_jams.py --------------------------
+
+Picked up _JAVA_OPTIONS: -Xloggc:/home/lucasmsp/gc.log -verbose:gc -XX:+PrintGCDateStamps -XX:+PrintGCDetails
+WARNING: IT Properties file is null. Setting default values
+[(704)    API]  -  Starting COMPSs Runtime v2.0 (build 20161222-1313.r2680)
+Running Waze-jams-compss with the parameters:
+        - Filename:/home/lucasmsp/workspace/BigSea/waze-jams/sample
+        - numFrag: 4
+<generator object chunks at 0x7f81080564b0>
+
+Elapsed 641 seconds
+[(643173)    API]  -  Execution Finished
+
+------------------------------------------------------------
+Ter Jun 20 19:46:45 BRT 2017
