@@ -1,5 +1,6 @@
 
-function [code] = prepare (ytab,name_output)
+function  config = prepare (ytab) %[data, covf, meanfunc, likf, infm, hyp, Ntrain, Ntest, M]
+
 
 		% Defining prior structure
 		covft = {@covSum, {@covSEiso, @covPeriodic}};				% temporal components
@@ -22,7 +23,7 @@ function [code] = prepare (ytab,name_output)
 		if (Ntrain > N), error('Dataset has too few instances!'); end
 		yg = reshape(ytab', sqrt(M), sqrt(M), N);
 
-		size(yg) % Lucas
+		size(yg); % Lucas
 
 		% Forming adjacency-related covariate: proportion of jams on neighboring cells
 		adj = zeros(sqrt(M), sqrt(M), N);
@@ -46,15 +47,18 @@ function [code] = prepare (ytab,name_output)
 
 		% Saving pre-computations
 		config.data = [ adj(:) yg(:) ];
-		config.covf = covfunc;
-		config.meanf = meanfunc;
-		config.likf = likfunc;
-		config.infm = infmet;
+		% config.covf = covfunc;
+		% config.meanf = meanfunc;
+		% config.likf = likfunc;
+		%config.infm = infmet;
 		config.hyp = hyp;
 		config.Ntrain = Ntrain;
 		config.Ntest = N - Ntrain + 1;
 		config.M = M;
-		save(name_output, 'config');
 
-		code = 42
+
+
+		%save(name_output, 'config');
+
+		%code = 42
 endfunction

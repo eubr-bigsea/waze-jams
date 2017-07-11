@@ -1,12 +1,26 @@
 
-function [code] = runGP (configfile,cellnum,out1,out2)
+function [code] = runGP (config,cellnum,out1,out2)
+
+		printf ("HEREEE")
 
 		% Input: path to file with configuration, cell number
 		%configfile = argv(){1};
 		%cellnum = str2num(argv(){2});
-		printf("File: %s",configfile)
+		%printf("File: %s",configfile)
 		% Loading configuration file and preparing data
-		load(configfile);
+		covft 		= {@covSum, {@covSEiso, @covPeriodic}};				% temporal components
+		covfa 		= {@covSum, {@covConst, @covLINiso}};				% adjacency component
+		covfunc	 	= {@covSum, {{@covMask, {1, covft}}, {@covMask, {2, covfa}}}};	% sum over all components
+		meanfunc 	= @meanZero;							% specification of mean function
+		likfunc 	= @likLogistic;							% specification of likelihood function
+		infmet 		= @infLaplace;							% Laplace approximation for likelihood function
+
+		config.covf 	= covfunc;
+		config.meanf 	= meanfunc;
+		config.likf 	= likfunc;
+		config.infm 	= infmet;
+
+		%load(configfile);
 		if (config.M < cellnum), error('Wrong cell number!'); end
 		adj = config.data(:,1);
 		adj_tab = reshape(adj, config.M, config.Ntrain + config.Ntest - 1);
@@ -21,7 +35,6 @@ function [code] = runGP (configfile,cellnum,out1,out2)
 		opt = minimize(config.hyp, @gp, -100, config.infm, config.meanf, config.covf, config.likf, Xtrain, ytrain);
 		hyp = opt.cov;
 
-		printf ("OKKKK")
 
 		% Estimating future probability of traffic jams
 		yhat = zeros(config.Ntest, 1);
