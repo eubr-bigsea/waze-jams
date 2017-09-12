@@ -9,64 +9,100 @@ from pycompss.api.parameter    import *
 from pycompss.functions.reduce import mergeReduce
 from pycompss.functions.data   import chunks
 
-import string
-import re
-import unicodedata
-import sys
-import math
-reload(sys)
-sys.setdefaultencoding("utf-8")
+
+
+
 import time
 import numpy as np
-from oct2py import octave
 
 
-#@task(returns=list)
-def compute(script_runGP,path,config,cellnums):
-    from oct2py import octave
-#    octave.addpath(path)
+#@task (returns = list)
+def GP(script_runGP,path,config,cellnums):
 
+    adj, y, M, N, Ntrain, Ntest = config
+    import oct2py
     out1 = ""
     out2 = ""
     for cellnum in cellnums:
         start = time.time()
         out1 = "{}forecasts_{}".format(path,cellnum)
         out2 = "{}hypers_{}".format(path,cellnum)
-
-        code = octave.runGP(config,cellnum,out1,out2)
-        #code  = octave.feval(script_runGP, config,cellnum,out1,out2)
-        print code
+        code  = oct2py.octave.feval(script_runGP, adj,y, M, N, Ntrain, Ntest, cellnum, out1, out2)
+        if code != 42:
+            break
         end = time.time()
         print "Elapsed {} seconds".format(end-start)
 
     return [out1,out2]
 
-#@task(returns = dict)
-def prepare(script_prepare, filename):
+@task (filename = FILE_IN, returns = list)
+def prepare(filename):
     """
-    In order to use an m-file in Oct2Py you can call feval with the full path.
-    Thread-safety: each Oct2Py object uses an independent Octave session.
+    Forming adjacency-related covariate: proportion of jams on neighboring cells
     """
+
+    np.set_printoptions(threshold=np.nan)
     result = {}
 
-
-    from oct2py import Oct2Py
     start = time.time()
 
-    ytab = np.loadtxt(filename,delimiter=' ')
-    #print ytab
+    ytab = np.loadtxt(filename, delimiter=' ')
 
-    #path = "/home/lucasmsp/workspace/BigSea/waze-jams/compss/"
+    N,M =  ytab.shape
+    print "[{} {}]".format(N,M)
 
-    #octave.addpath(path)
-    #result = octave.prepare(ytab)
+    #cria uma nova matriz por linha
+    sqrt_M = int(np.sqrt(M))
+    yg = ytab.reshape(N, sqrt_M ,sqrt_M )
 
-    #or (data, covf, meanfunc, likf, infm, hyp, Ntrain, Ntest, M)
-    result = octave.feval(script_prepare, ytab)
-    #print result
+    adj =  np.zeros((N,M), dtype=float).reshape(N, sqrt_M ,sqrt_M )
+    nsqrt_M = sqrt_M-1
+
+    for jj in xrange(0, sqrt_M):
+        for ii in xrange(0, sqrt_M):
+            c = 0;
+            if (ii > 0 and jj > 0):
+                adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii-1,jj-1]
+                c +=1.0
+            if (ii > 0):
+                adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii-1,jj]
+                c +=1.0
+            if (ii > 0 and jj < nsqrt_M):
+                adj[:,ii,jj] = adj[:,ii,jj] +  yg[:,ii-1,jj+1]
+                c +=1.0
+
+            if (jj > 0):
+                adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii,jj-1]
+                c +=1.0
+
+            if (jj < nsqrt_M ):
+                adj[:,ii,jj] = adj[:,ii,jj]+ yg[:,ii,jj+1]
+                c +=1.0
+
+            if (ii < nsqrt_M  and jj > 0):
+                adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii+1,jj-1]
+                c +=1.0
+
+            if (ii < nsqrt_M ):
+                adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii+1,jj]
+                c +=1.0
+
+            if (ii < nsqrt_M  and jj < nsqrt_M):
+                adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii+1,jj+1]
+                c +=1.0
+
+            adj[:,ii,jj] = map(lambda x: x/c, adj[:,ii,jj])
+
+
+
+    Ntrain = int(N)
+    Ntest  = N - Ntrain + 1
+    adj    = adj.ravel()
+    y      = [ y*2-1 for y in yg.ravel()] #Fixing labels to be +/- 1
+
     end = time.time()
     print "Elapsed {} seconds".format(end-start)
-    return result
+    return [adj,y,M,N,Ntrain, Ntest]
 
 
 def chunks(l, n):
@@ -74,49 +110,64 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
-def  waze_jams(script_prepare,script_runGP,filename,output,numFrag):
+def  waze_jams(grid,script_runGP,filename,output,numFrag):
     """
         script_prepare: path to the first stage;
         script_runGP:   path to the second stage;
         path:           path to workspace in octave
 
     """
-    config = prepare(script_prepare,filename)
-
-
-    cells = [i for i in xrange(1,4)]
-    frag_cells = chunks(cells, int(float(len(cells))/numFrag+1))
-
     from pycompss.api.api import compss_wait_on
-    partialResult = [compute(script_runGP,path, config, cellnums) for cellnums  in frag_cells ]
-    partialResult = compss_wait_on(partialResult)
+    config = prepare(filename)
+    config = compss_wait_on(config)
+
+    if grid == -1:
+        cells = [i for i in xrange(0,2500)]
+        frag_cells = chunks(cells, int(float(len(cells))/numFrag+1))
+
+        partialResult = [GP(script_runGP, output, config, cellnums) for cellnums  in frag_cells ]
+        partialResult = compss_wait_on(partialResult)
+
+    else:
+        cellnums = [grid]
+        partialResult = GP(script_runGP, output, config, cellnums)
 
 
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description='Waze-jams - PyCompss')
-    parser.add_argument('-p', '--script_prepare',   required=True, help='Script to the first stage (prepare)')
-    parser.add_argument('-r', '--script_runGP',     required=True, help='Script to the second stage (runGP)')
-    parser.add_argument('-f', '--filename',         required=True, help='Filename of the input')
-    parser.add_argument('-o', '--output',           required=True, help='output path')
-    parser.add_argument('-n', '--numFrag',       type=int,  default=4, required=False, help='Number of nodes')
+    p = argparse.ArgumentParser(description='Waze-jams - PyCompss')
 
-    arg = vars(parser.parse_args())
+    p.add_argument('-i','--input', required=True,help='Filename of the input')
+    p.add_argument('-r','--script_runGP',  required=True,
+                    help='File path to the script to the second stage (runGP)')
+    p.add_argument('-o','--output',required=True, help='Output file directory')
+    p.add_argument('-g','--grid',   required=False,
+                    help='Number of a cell grid (1 <= N <= 2500), -1 to all.',
+                    type=int,  default=-1)
+    p.add_argument('-n','--numFrag',required=False,
+                                  help='Number of nodes', type=int,  default=4)
 
-    script_prepare  = arg['script_prepare']
+    arg = vars(p.parse_args())
+
     script_runGP    = arg['script_runGP']
-    filename        = arg['filename']
+    filename        = arg['input']
     numFrag         = arg['numFrag']
     output          = arg['output']
+    grid            = arg['grid']
 
-    path = "/home/lucasmsp/workspace/BigSea/waze-jams/compss/"
+    print """
+        Running Waze-jams-compss with the parameters:
+         - Filename:    {}
+         - script_runGP:{}
+         - grid:        {}
+         - numFrag:     {}
+         - Output Path: {}
 
-
-    print "Running Waze-jams-compss with the parameters:\n\t- Filename:{}\n\t- numFrag: {}".format(filename,numFrag)
+    """.format(filename,script_runGP,grid,numFrag, output)
 
     start = time.time()
-    waze_jams(script_prepare,script_runGP,filename,output,numFrag)
+    waze_jams(grid,script_runGP,filename,output,numFrag)
     end = time.time()
     print "Elapsed {} seconds".format(int(end-start))
