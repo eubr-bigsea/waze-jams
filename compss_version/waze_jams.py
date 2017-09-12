@@ -4,36 +4,13 @@
 __author__ = "Lucas Miguel S Ponce"
 __email__  = "lucasmsp@gmail.com"
 
-from pycompss.api.task import task
+from pycompss.api.task         import task
 from pycompss.api.parameter    import *
 from pycompss.functions.reduce import mergeReduce
 from pycompss.functions.data   import chunks
 
-
-
-
 import time
 import numpy as np
-
-
-#@task (returns = list)
-def GP(script_runGP,path,config,cellnums):
-
-    adj, y, M, N, Ntrain, Ntest = config
-    import oct2py
-    out1 = ""
-    out2 = ""
-    for cellnum in cellnums:
-        start = time.time()
-        out1 = "{}forecasts_{}".format(path,cellnum)
-        out2 = "{}hypers_{}".format(path,cellnum)
-        code  = oct2py.octave.feval(script_runGP, adj,y, M, N, Ntrain, Ntest, cellnum, out1, out2)
-        if code != 42:
-            break
-        end = time.time()
-        print "Elapsed {} seconds".format(end-start)
-
-    return [out1,out2]
 
 @task (filename = FILE_IN, returns = list)
 def prepare(filename):
@@ -104,6 +81,23 @@ def prepare(filename):
     print "Elapsed {} seconds".format(end-start)
     return [adj,y,M,N,Ntrain, Ntest]
 
+@task (returns = list)
+def GP(script_runGP,path,config,cellnums):
+    result = []
+    adj, y, M, N, Ntrain, Ntest = config
+    import oct2py
+    for cellnum in cellnums:
+        start = time.time()
+        result_i  = oct2py.octave.feval(script_runGP, adj,y, M, N, Ntrain, Ntest, cellnum)
+        result.append([cellnum, result_i ])
+        end = time.time()
+        print "Elapsed {} seconds".format(end-start)
+
+    return result
+
+def mergelists(list1,list2):
+    return list1+list2
+
 
 def chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -111,28 +105,24 @@ def chunks(l, n):
         yield l[i:i + n]
 
 def  waze_jams(grid,script_runGP,filename,output,numFrag):
-    """
-        script_prepare: path to the first stage;
-        script_runGP:   path to the second stage;
-        path:           path to workspace in octave
 
-    """
-    from pycompss.api.api import compss_wait_on
     config = prepare(filename)
-    config = compss_wait_on(config)
 
     if grid == -1:
         cells = [i for i in xrange(0,2500)]
         frag_cells = chunks(cells, int(float(len(cells))/numFrag+1))
 
         partialResult = [GP(script_runGP, output, config, cellnums) for cellnums  in frag_cells ]
-        partialResult = compss_wait_on(partialResult)
+        results       = mergeReduce(mergelists,partialResult)
 
     else:
         cellnums = [grid]
-        partialResult = GP(script_runGP, output, config, cellnums)
+        results = GP(script_runGP, output, config, cellnums)
 
-
+    from pycompss.api.api import compss_wait_on
+    results = compss_wait_on(results)
+    for r in results:
+        print r
 
 
 if __name__ == "__main__":

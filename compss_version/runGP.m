@@ -1,5 +1,5 @@
 
-function [code] = runGP (adj,y,M,N,Ntrain,Ntest,cellnum,out1,out2)
+function result = runGP (adj,y,M,N,Ntrain,Ntest,cellnum)
 
 
 
@@ -46,8 +46,9 @@ function [code] = runGP (adj,y,M,N,Ntrain,Ntest,cellnum,out1,out2)
 	disp(['Storing results']);
 	% Storing results
 	Forecasts = [ yhat yvar ];
-	save('-ascii', out1 , 'Forecasts');
-	save('-ascii', out2, 'hyp');
+	%save('-ascii', out1 , 'Forecasts');
+	%save('-ascii', out2, 'hyp');
+	result.Forecasts = Forecasts;
+	result.hyp = hyp;
 
-	code = 42
 endfunction
