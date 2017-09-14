@@ -38,18 +38,34 @@ DEMO
 
 A sample file has been added to guide formatting new datafiles and testing of the code. The file sample.txt contains data of a 50x50 spatial grid with hourly observations for 28 days (on a total of 672 observations per grid cell).
 
-For testing, run:
+#### Example 1: Predicting the traffic in the next hour based in a already created model (to all grids):
 
-	runcompss --lang=python $PWD/waze_jams.py -n 4 -g 4\
-              -i "/var/workspace/sample_train.txt" 
-              -r "/var/workspace/runGP.m" \
-              -o "/var/workspace/"
+     runcompss --lang=python $PWD/waze_jams.py \
+               --numFrag 4 --grid -1 --ngrids 2500 --Ntrain -1 \
+               --trainfile "/var/workspace/compss_version/sample.txt" \
+               -o          "/var/workspace/compss_version/"\
+               --script    "/var/workspace/compss_version/runGP.m" \
+               --hypers    "/var/workspace/compss_version/compss_version/" 
+
+#### Example 2: Creating a model and predicting the traffic in the next hour (to all grids):
+
+     runcompss -g --log_level=info --lang=python $PWD/waze_jams.py \
+               --numFrag 4 --grid -1 --ngrids 2500 --Ntrain -1\
+               --trainfile "/var/workspace/compss_version/sample.txt" \
+               -o          "/var/workspace/compss_version/" \
+               --script    "/var/workspace/compss_version/trainAndRunGP.m"
 
 
-where:
 
-  * n: Is the number of cores;
-  * g: Is the number of a cell grid (1 <= N <= 2500) or -1 to test all cells in parallel;
-  * i: Is the input path to the sample\_train.txt;
-  * r: Is the path to the runGP.m script;
-  * o: Is the Output file directory.
+
+
+Where:
+
+  * trainfile, -t: Filename of the training set;
+  * numFrag, -f:   The number of cores;
+  * ngrids, -n:    Number of grids. (default, 2500);
+  * grid, -g:      The number of a cell grid (1 <= N <= ngrids) or -1 to test all cells in parallel;
+  * Ntrain, -s:    Size of Training Set. -1 to use all training set. (default, -1);
+  * script, -r:    File path to the script to the second stage (runGP or trainAndRunGP);
+  * hypers, -p:    Path of the previous hyperparameters (only if is using runGP script);
+  * output, -o:    The Output file directory.
