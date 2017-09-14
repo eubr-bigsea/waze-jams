@@ -1,19 +1,18 @@
 
-function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
-
+function result = trainAndRunGP (adj, yg, M, cellnum, Ntrain, Ntest)
+	
 	%  Defining prior structure
 	covft 	= {@covSum, {@covSEiso, @covPeriodic}};													% temporal components
 	covfa 	= {@covSum, {@covConst, @covLINiso}};														% adjacency component
 	covf  	= {@covSum, {{@covMask, {1, covft}}, {@covMask, {2, covfa}}}};	% sum over all components
-	%hyp.cov = log([1;1;1;24;1;1;1]);																				% initial guess for hypers
+	hyp.cov = log([1;1;1;24;1;1;1]);																				% initial guess for hypers
 	meanf   = @meanZero;																										% specification of mean function
 	likf 		= @likLogistic;																									% specification of likelihood function
 	infm    = @infLaplace;																									% Laplace approximation for likelihood function
 	Ntrain  = double(Ntrain);
 	Ntest   = double(Ntest);
-	opt.cov	= double(hypers);		%from hypfile
-	hyp.mean = [];
-	hyp.lik = [];
+	cellnum = double(cellnum)
+
 
 	disp(['Filtering relevant data...']);
 	% filtering relevant data
@@ -22,12 +21,12 @@ function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
 	y_tab 	= reshape(yg, M,  Ntrain + Ntest - 1);
 	yg 			= y_tab(cellnum, :)';
 
-	%disp(['Hyperparameter optimization...']);
+	disp(['Hyperparameter optimization...']);
 	% Hyperparameter optimization
 	xtrain = [ (1:Ntrain)' adj(1:Ntrain) ];
 	ytrain = yg(1:Ntrain);
-	%opt 	 = minimize(hyp, @gp, -100, infm, meanf, covf, likf, xtrain, ytrain);
-	%hyp 	 = opt.cov;
+	opt 	 = minimize(hyp, @gp, -100, infm, meanf, covf, likf, xtrain, ytrain);
+	hyp 	 = opt.cov;
 
 	disp(['Estimating future probability of traffic jams...']);
 	% Estimating future probability of traffic jams
@@ -52,6 +51,6 @@ function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
 	Forecasts = (Forecasts + 1)/2; % turning them into the interval [0,1]
 
 	result.Forecasts = Forecasts;
-	result.hyp = opt.cov;
+	result.hyp = hyp;
 
 endfunction

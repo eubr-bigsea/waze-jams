@@ -13,7 +13,7 @@ import time
 import numpy as np
 
 @task (filename = FILE_IN, returns = list)
-def prepare(filename):
+def prepare(filename, Ntrain):
     """
     Forming adjacency-related covariate: proportion of jams on neighboring cells
     """
@@ -25,7 +25,8 @@ def prepare(filename):
 
     ytab = np.loadtxt(filename, delimiter=' ')
 
-    N,M =  ytab.shape
+    N, M =  ytab.shape
+    N = int(N)
     print "[{} {}]".format(N,M)
 
     #cria uma nova matriz por linha
@@ -47,23 +48,18 @@ def prepare(filename):
             if (ii > 0 and jj < nsqrt_M):
                 adj[:,ii,jj] = adj[:,ii,jj] +  yg[:,ii-1,jj+1]
                 c +=1.0
-
             if (jj > 0):
                 adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii,jj-1]
                 c +=1.0
-
             if (jj < nsqrt_M ):
                 adj[:,ii,jj] = adj[:,ii,jj]+ yg[:,ii,jj+1]
                 c +=1.0
-
             if (ii < nsqrt_M  and jj > 0):
                 adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii+1,jj-1]
                 c +=1.0
-
             if (ii < nsqrt_M ):
                 adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii+1,jj]
                 c +=1.0
-
             if (ii < nsqrt_M  and jj < nsqrt_M):
                 adj[:,ii,jj] = adj[:,ii,jj] + yg[:,ii+1,jj+1]
                 c +=1.0
@@ -71,93 +67,149 @@ def prepare(filename):
             adj[:,ii,jj] = map(lambda x: x/c, adj[:,ii,jj])
 
 
-
-    Ntrain = int(N)
-    Ntest  = N - Ntrain + 1
     adj    = adj.ravel()
-    y      = [ y*2-1 for y in yg.ravel()] #Fixing labels to be +/- 1
+    yg     = [ y*2-1 for y in yg.ravel()] #Fixing labels to be +/- 1
+    if Ntrain == -1:
+        Ntrain = N
+        Ntest  = 1
+    else:
+        if Ntrain>N:
+            print 'Dataset has too few instances!'
+            Ntrain = N
+        Ntest = N - Ntrain + 1
 
     end = time.time()
     print "Elapsed {} seconds".format(end-start)
-    return [adj,y,M,N,Ntrain, Ntest]
+    return [adj, yg, M, Ntrain, Ntest]
 
 @task (returns = list)
-def GP(script_runGP,path,config,cellnums):
+def GP(script,config,cellnums,train_op):
     result = []
-    adj, y, M, N, Ntrain, Ntest = config
+    adj, yg, M, Ntrain, Ntest = config
     import oct2py
-    for cellnum in cellnums:
-        start = time.time()
-        result_i  = oct2py.octave.feval(script_runGP, adj,y, M, N, Ntrain, Ntest, cellnum)
-        result.append([cellnum, result_i ])
-        end = time.time()
-        print "Elapsed {} seconds".format(end-start)
+    if not train_op:
+        for cellnum in cellnums:
+            if cellnum < M:
+                start = time.time()
+                print "Creating the model and predicting the next hour of the grid #{}".format(cellnum)
+                result_i  = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest)
+                result.append([cellnum, result_i ])
+                end = time.time()
+                print "Elapsed {} seconds".format(end-start)
+    else:
+        for cellnum, hypers in cellnums:
+            if cellnum < M:
+                start = time.time()
+                print "Predicting the next hour of the grid #{}".format(cellnum)
+                result_i  = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest, hypers)
+                result.append([cellnum, result_i ])
+                end = time.time()
+                print "Elapsed {} seconds".format(end-start)
 
     return result
 
+@task (returns = list)
 def mergelists(list1,list2):
     return list1+list2
 
+def load_hypers(hypers,frag_cells):
+    for i in range(len(frag_cells)):
+        hyper = np.loadtxt("hypers_{}.txt".format(frag_cells[i]), delimiter=' ', dtype=float)
+        hyper = hyper.reshape((len(hyper), 1))
+        frag_cells[i] = [frag_cells[i], hyper]
+    return frag_cells
 
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
+def  waze_jams(trainfile, hypers, Ntrain, script, ngrids, grid, numFrag, output):
+    """
+    prepare():
+        It contains both the data to be used for hyperparameter learning and
+        inference as information regarding the GP prior distribution.
 
-def  waze_jams(grid,script_runGP,filename,output,numFrag):
+    trainGP():
+        It outputs two items per cell: forecasts and hypers. The first items
+        contains a Tx2 matrix with predictive mean and variance, where T is
+        the number of time intervals required for testing.
 
-    config = prepare(filename)
+        Predictions are in the interval [-1,+1], where predictions closer to -1
+        indicate greater probability of being associated with label -1 and
+        predictions closer to +1 indicate the opposite scenario.
 
+        These predictions can be turned into probabilities by turning them into
+        the interval [0,1]. The second item consists of a vector with learned
+        hyperparameters.
+
+    """
+    import time
+    timestr = str(time.strftime("%Y%m%d_%Hh"))
+
+    config = prepare(trainfile, Ntrain)
+    
     if grid == -1:
-        cells = [i for i in xrange(0,2500)]
-        frag_cells = chunks(cells, int(float(len(cells))/numFrag+1))
-
-        partialResult = [GP(script_runGP, output, config, cellnums) for cellnums  in frag_cells ]
+        frag_cells = np.array_split(np.arange(1,ngrids+1), numFrag)
+        if len(hypers)>0:
+            frag_cells    = [load_hypers(hypers,frag_cells[i]) for i in range(numFrag)]
+            partialResult = [GP(script, config, frag, True ) for frag  in frag_cells ]
+        else:
+            partialResult = [GP(script, config, frag, False) for frag  in frag_cells ]
         results       = mergeReduce(mergelists,partialResult)
-
     else:
-        cellnums = [grid]
-        results = GP(script_runGP, output, config, cellnums)
+        frag_cells = [grid]
+        if len(hypers)>0:
+            frag_cells = load_hypers(hypers, frag_cells)
+            results  = GP(script, config, frag_cells, True)
+        else:
+            results  = GP(script, config, frag_cells, False)
+
 
     from pycompss.api.api import compss_wait_on
     results = compss_wait_on(results)
     for r in results:
-        print r
+        cellnum   = r[0]
+        print cellnum
+        forecasts = r[1]['Forecasts']
+        hypers    = r[1]['hyp']
+        print np.array(forecasts).shape
+        print np.array(hypers).shape
+        np.savetxt('forecasts_{}_{}.txt'.format(cellnum,timestr), forecasts, delimiter=',', fmt='%f')
+        np.savetxt('hypers_{}.txt'.format(cellnum),    hypers,    delimiter=',', fmt='%f')
 
 
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description='Waze-jams - PyCompss')
 
-    p.add_argument('-i','--input', required=True,help='Filename of the input')
-    p.add_argument('-r','--script_runGP',  required=True,
-                    help='File path to the script to the second stage (runGP)')
-    p.add_argument('-o','--output',required=True, help='Output file directory')
-    p.add_argument('-g','--grid',   required=False,
-                    help='Number of a cell grid (1 <= N <= 2500), -1 to all.',
-                    type=int,  default=-1)
-    p.add_argument('-n','--numFrag',required=False,
-                                  help='Number of nodes', type=int,  default=4)
-
+    p.add_argument('-t','--trainfile',required=True, help='Filename of the training set.')
+    p.add_argument('-r','--script',   required=True, help='File path to the script to the second stage (runGP or trainAndRunGP)')
+    p.add_argument('-g','--grid',     required=False,help='Number of a cell grid (1 <= N <= ngrid), -1 to all.', type=int,  default=-1)
+    p.add_argument('-s','--Ntrain',   required=True, help='Size of Training Set. -1 to use all training set. (default, -1)', type=int, default=-1)
+    p.add_argument('-f','--numFrag',  required=False,help='Number of cores', type=int,  default=4)
+    p.add_argument('-n','--ngrids',   required=False,help='Number of grids. (default, 2500)', type=int, default=2500)
+    p.add_argument('-p','--hypers',   required=False,help='Path of the previous hyperparameters.', type=str, default='')
+    p.add_argument('-o','--output',   required=True, help='Output file directory')
     arg = vars(p.parse_args())
 
-    script_runGP    = arg['script_runGP']
-    filename        = arg['input']
-    numFrag         = arg['numFrag']
+    trainfile       = arg['trainfile']
+    hypers          = arg['hypers']
+    script          = arg['script']
     output          = arg['output']
+    ngrids          = arg['ngrids']
     grid            = arg['grid']
-
+    Ntrain          = arg['Ntrain']
+    numFrag         = arg['numFrag']
     print """
-        Running Waze-jams-compss with the parameters:
-         - Filename:    {}
-         - script_runGP:{}
-         - grid:        {}
-         - numFrag:     {}
-         - Output Path: {}
+        Running Traffic-jams in PyCOMPSs with the parameters:
+         - Training File:   {}
+         - hypers:          {}
+         - Training size:   {}
+         - script:          {}
+         - Number of grids: {}
+         - grid:            {}
+         - numFrag:         {}
+         - Output Path:     {}
 
-    """.format(filename,script_runGP,grid,numFrag, output)
+    """.format(trainfile, hypers, Ntrain, script,ngrids, grid, numFrag, output)
 
     start = time.time()
-    waze_jams(grid,script_runGP,filename,output,numFrag)
+    waze_jams(trainfile, hypers, Ntrain, script, ngrids, grid, numFrag, output)
     end = time.time()
     print "Elapsed {} seconds".format(int(end-start))
