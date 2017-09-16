@@ -9,8 +9,10 @@ from pycompss.api.parameter import *
 from pycompss.functions.reduce import mergeReduce
 from pycompss.api.api import compss_wait_on
 
-from datetime import datetime, timedelta
+
 import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
 from shapely.geometry import Polygon, LineString
 
 
@@ -19,35 +21,28 @@ def group_datetime(d, interval):
     k = d - timedelta(seconds=seconds % interval)
     return datetime(k.year, k.month, k.day, k.hour, k.minute, k.second)
 
-
-def create_grid(ngrid, bounds):
-    ncols     = ngrid[0] * ngrid[1]
-    grids     =  [[] for f in range(ncols)]
-    div_y =  np.sqrt((bounds[0][1] - bounds[0][0])**2) /ngrid[0]
-    div_x =  np.sqrt((bounds[1][1] - bounds[1][0])**2) /ngrid[1]
-
-    pos_y = bounds[0][0]
-    pos_x = bounds[1][0]
-
-    tmp_y = pos_y
-    for c in range(ncols):
-        if (c % ngrid[0] == 0):
-            pos_y  = tmp_y
-            tmp_y += div_y
-            pos_x = bounds[1][0]
-
-        tmp_x = pos_x+div_x
-        grid = [(pos_y, pos_x), (pos_y,tmp_x), (tmp_y,tmp_x),(tmp_y,pos_x) ]
-        pos_x = tmp_x
-        grids[c] = grid
-
-
-    return np.array(grids)
-
 @task(returns=list, filename=IN)
-def preprocessing(filename,grids,ngrid,nday_sample,window_time, mapper, jam_grids):
+def preprocessing(grids, window_time,filename):
     import json
-    ncols     = ngrid[0] * ngrid[1]
+    ncols  = len(grids)
+
+    index_c = -1     # Index of the current instante T
+    labels = ["instante"] + [i for i in xrange(1,ncols+1)]
+    zeros  = np.zeros(ncols).tolist()
+    jam_grids = pd.DataFrame([], columns=labels)  # Partial result
+
+    #West Longitude,South Latitude,East Longitude,North Latitude,IDgrid,Valid
+    WEST  = 0
+    SOUTH = 1
+    EAST  = 2
+    NORTH = 3
+    VALID = 5
+
+    div_y = grids[0][NORTH] - grids[0][SOUTH]
+    div_x = grids[0][EAST]  - grids[0][WEST]
+    init_x = grids[0][WEST]
+    init_y = grids[0][SOUTH]
+    #print "div_y:{}  and div_x:{}".format(div_y,div_x)
 
     for i, line in  enumerate(open(filename,'r')):
         record = json.loads(line)
@@ -56,34 +51,47 @@ def preprocessing(filename,grids,ngrid,nday_sample,window_time, mapper, jam_grid
         currentTime = datetime.utcfromtimestamp(float(currentTime)/ 1000.0)
         currentTime = group_datetime(currentTime, window_time)
 
-        index = mapper.get(str(currentTime), None)
+        index_c = jam_grids['instante'].loc[jam_grids['instante'] == str(currentTime)].index.tolist()
+
+        if index_c == []:
+            row = [ [str(currentTime)] + zeros ]
+            index_c = len(jam_grids)
+            jam_grids = jam_grids.append(pd.DataFrame(row, columns=labels, index=[index_c]))
+        else:
+            index_c = index_c[0]
+
 
         if (i% 10000 == 0):
             print currentTime
 
+        #pruning the list of grids
+        line_y = [ float(pair['y'])  for pair in points]
+        line_x = [ float(pair['x'])  for pair in points]
+        min_y = min(line_y)
+        max_y = max(line_y)
 
-        if index != None:
+        p = abs(min_y - init_y)
+        i_min = int(p/div_y)*50
+        p = abs(max_y - init_y)
+        i_max = int(p/div_y)*50+49
 
-            line_y = [ float(pair['y'])  for pair in points]
-            line_x = [ float(pair['x'])  for pair in points]
+        line = [(y,x) for y,x in zip(line_y,line_x)]
+        shapely_line = LineString(line)
 
-            min_y = min(line_y)
-            max_y = max(line_y)
-            i_min = 0
-            i_max = ngrid[1]
-            for e, g in enumerate(grids):
-                if (g[0][0] < min_y) and (min_y != g[0][0]):
-                    i_min = 0
+        #print "Checking in {} grids".format(i_max-i_min +1)
+        for col in xrange(i_min,i_max):
+            row     = grids[col]
+            if row[VALID]:
+                polygon = Polygon([ (row[SOUTH], row[WEST]),
+                                    (row[NORTH], row[WEST]),
+                                    (row[NORTH], row[EAST]),
+                                    (row[SOUTH], row[EAST])
+                                ])
 
-            line = [(y,x) for y,x in zip(line_y,line_x)]
-            shapely_line = LineString(line)
-
-            for c in xrange(i_min,ncols):
-                    polygon = grids[c]
-                    shapely_poly = Polygon(polygon)
-                    intersection_line = not shapely_poly.disjoint(shapely_line)
-                    if intersection_line:
-                        jam_grids[index,c]  += 1
+                shapely_poly = Polygon(polygon)
+                intersection_line = not shapely_poly.disjoint(shapely_line)
+                if intersection_line:
+                    jam_grids.ix[index_c, col] += 1
 
 
     return jam_grids
@@ -91,17 +99,17 @@ def preprocessing(filename,grids,ngrid,nday_sample,window_time, mapper, jam_grid
 
 
 @task(returns=list)
-def mergeMatrix( matrix1,matrix2):
-    r1 = matrix1+matrix2
+def mergeMatrix( jam1, jam2):
+    r1 = pd.concat([jam1,jam2]).groupby(['instante']).sum()
     return r1
 
 
-def updateJamGrid(jam_grids,mapper):
+def updateJamGrid(jam_grids):
     events = jam_grids.sum(axis=1)
-    mapper = {v: k for k, v in mapper.iteritems()}
-    count = [[mapper[i], v[0,0]] for i,v in enumerate(events)]
-    np.clip( jam_grids, 0, 1, out=jam_grids)
-    return jam_grids, count
+    events.ix['Total'] = events.sum()
+    jam_grids = jam_grids.astype(int).clip(0,1)
+
+    return jam_grids, events
 
 
 
@@ -109,70 +117,34 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description="Waze-jams's preprocessing script")
 
-    parser.add_argument('-i','--input',  required=True, help='the input file path.')
-    parser.add_argument('-b','--bounds', required=True, type=float, nargs='+',
-        help='the bounding box around a city, state, country, or zipcode using '
-        'geocoding. Format: min_y, max_y min_x max_x  '
-        '(where y=Latitude and x=Longitude)')
-    parser.add_argument('-w','--window',    type=int,   default=3600,
-        help='The window time to take in count')
-    parser.add_argument('-l','--nday',      type=int,   default=28,
-        help='The number of days to generate the sample.')
-    parser.add_argument('-g','--ngrid',     type=int,   default=[50,50],
-        nargs='+',  help='The organization of the grid')
-    parser.add_argument('-f','--numFrag',   type=int,   default=4,
-        help='Number of workers(core)')
-    parser.add_argument('-s','--init_time', type=float, default=1468738813423.0,
-        help='Initial time (in milis)')
+    parser.add_argument('-i','--input',  required=True,  help='The input file path.')
+    parser.add_argument('-g','--grids',  required=True,  help='The input of the grids list file.')
+    parser.add_argument('-w','--window', required=False, help='The window time (in seconds) to take in count (default, 3600)', type=int, default=3600,)
+    parser.add_argument('-f','--numFrag',required=False, help='Number of workers (cores)', type=int, default=4)
     arg = vars(parser.parse_args())
 
     filename    = arg['input']
-    bounds      = arg['bounds']
-    ngrid       = arg['ngrid']
+    grids       = arg['grids']
     window_time = arg['window']
-    nday_sample = arg['nday']
-    init_time   = arg['init_time']
     numFrag     = arg['numFrag']
-
-    bounds     = np.reshape(bounds, (2, 2)).tolist()
-    ncols      = ngrid[0] * ngrid[1]
-    init_time  = datetime.utcfromtimestamp(init_time/ 1000.0)
-    init_time  = group_datetime(init_time, window_time)
 
     print """
         Running: Waze-jams's preprocessing script with the following parameters:
-         - input file:   {}
-         - bounding box:      {}
-         - window time:       {} seconds
-         - number of days:    {} days
-         - grid:              {}
-         - inital time:       {}
-         - number of workers: {}
+         - Input file:   {}
+         - Grids file:   {}
+         - Window time:       {} seconds
+         - Number of workers: {}
 
-    """.format(filename,bounds,window_time,nday_sample,ngrid,init_time,numFrag)
+    """.format(filename,grids,window_time,numFrag)
 
 
-    grids     = create_grid(ngrid, bounds)
-    np.savetxt('output_grids.csv', grids, delimiter=',',fmt='%s,%s,%s,%s')
-
-    jam_grids = np.matrix(np.zeros( (nday_sample*24,ncols), dtype=np.int) )
-    mapper = dict()
-    for d in range(nday_sample*24):
-        c = init_time + timedelta(hours=d)
-        mapper[str(c)] = d
-
-    partial_grid = [  preprocessing("{}_{}".format(filename,f),
-                                    grids,
-                                    ngrid,
-                                    nday_sample,
-                                    window_time,
-                                    mapper,
-                                    jam_grids) for f in range(numFrag)]
+    grids = np.genfromtxt(grids, delimiter=',', dtype=None, names=True)
 
 
+    partial_grid = [preprocessing(grids, window_time, "{}_{}".format(filename,f)) for f in range(numFrag)]
     jam_grids_p = mergeReduce(mergeMatrix, partial_grid)
     jam_grids_p = compss_wait_on(jam_grids_p)
-    jam_grids, events = updateJamGrid(jam_grids_p,mapper)
-
-    np.savetxt('output_training.csv', jam_grids, delimiter=',',fmt='%d')
-    np.savetxt('output_events.csv',   events,   delimiter=',', fmt='%s,%s')
+    jam_grids, events = updateJamGrid(jam_grids_p)
+    
+    jam_grids.to_csv("output_training.csv",sep=",",index=False,header=False)
+    events.to_csv("output_counts.csv",sep=",")
