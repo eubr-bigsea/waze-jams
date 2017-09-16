@@ -49,7 +49,7 @@ The output of this program is a csv file, where each line corresponds to a grid 
 
 The image below is an example that corresponds to the grids for the city of Curitiba (only valid grids).
 
-![](./Curitiba_Grids_Distribuition.jpg | width=500)
+![](./Curitiba_Grids_Distribuition.jpg)
 
 
 ## 4 - preprocessing.py (mandatory)
