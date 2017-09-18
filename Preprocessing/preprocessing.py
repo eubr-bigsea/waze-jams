@@ -45,54 +45,67 @@ def preprocessing(grids, window_time,filename):
     #print "div_y:{}  and div_x:{}".format(div_y,div_x)
 
     for i, line in  enumerate(open(filename,'r')):
-        record = json.loads(line)
-        points = record['line']
-        currentTime = record['pubMillis']["$numberLong"]
-        currentTime = datetime.utcfromtimestamp(float(currentTime)/ 1000.0)
-        currentTime = group_datetime(currentTime, window_time)
+        try:
+            record = json.loads(line)
+            points = record['line']
+            currentTime = record['pubMillis']["$numberLong"]
+            currentTime = datetime.utcfromtimestamp(float(currentTime)/ 1000.0)
+            currentTime = group_datetime(currentTime, window_time)
 
-        index_c = jam_grids['instante'].loc[jam_grids['instante'] == str(currentTime)].index.tolist()
+            index_c = jam_grids['instante'].loc[jam_grids['instante'] == str(currentTime)].index.tolist()
 
-        if index_c == []:
-            row = [ [str(currentTime)] + zeros ]
-            index_c = len(jam_grids)
-            jam_grids = jam_grids.append(pd.DataFrame(row, columns=labels, index=[index_c]))
-        else:
-            index_c = index_c[0]
+            if index_c == []:
+                row = [ [str(currentTime)] + zeros ]
+                index_c = len(jam_grids)
+                jam_grids = jam_grids.append(pd.DataFrame(row, columns=labels, index=[index_c]))
+            else:
+                index_c = index_c[0]
+
+            if (i% 10000 == 0):
+                print "Line {} at {}".format(i,currentTime)
+
+            line = [ (float(pair['y']), float(pair['x']))  for pair in points]
+            shapely_line = LineString(line)
+
+            #pruning the list of grids
+            bound = shapely_line.bounds
+            miny, minx, maxy, maxx = bound
+            #print "LINE: miny {} and maxy {}".format(miny,maxy)
+
+            p = abs(miny - init_y)
+            i_min = int(p/div_y)*50
+            p = abs(maxy - init_y)
+            i_max = int(p/div_y)*50+49
+
+            if i_min>=ncols:
+                print "Line #{} - ({},{}]".format(i, i_min,i_max)
+                i_min = ncols-1
+            if i_max>=ncols:
+                print "Line #{} - ({},{}]".format(i, i_min,i_max)
+                i_max = ncols-1
 
 
-        if (i% 10000 == 0):
-            print currentTime
+            #print "GRID miny {}  and GRID maxy {}".format(grids[i_min][SOUTH],grids[i_max][NORTH])
+            #print "Checking  ({},{}) in {} grids".format(i_min,i_max ,i_max-i_min +1)
 
-        #pruning the list of grids
-        line_y = [ float(pair['y'])  for pair in points]
-        line_x = [ float(pair['x'])  for pair in points]
-        min_y = min(line_y)
-        max_y = max(line_y)
+            for col in xrange(i_min, i_max+1):
+                row     = grids[col] #0 to 2499
+                if row[VALID]:
+                    polygon = Polygon([ (row[SOUTH], row[WEST]),
+                                        (row[NORTH], row[WEST]),
+                                        (row[NORTH], row[EAST]),
+                                        (row[SOUTH], row[EAST])
+                                    ])
 
-        p = abs(min_y - init_y)
-        i_min = int(p/div_y)*50
-        p = abs(max_y - init_y)
-        i_max = int(p/div_y)*50+49
+                    shapely_poly = Polygon(polygon)
+                    intersection_line = not shapely_poly.disjoint(shapely_line)
+                    if intersection_line:
+                        jam_grids.ix[index_c, col] += 1
 
-        line = [(y,x) for y,x in zip(line_y,line_x)]
-        shapely_line = LineString(line)
 
-        #print "Checking in {} grids".format(i_max-i_min +1)
-        for col in xrange(i_min,i_max):
-            row     = grids[col]
-            if row[VALID]:
-                polygon = Polygon([ (row[SOUTH], row[WEST]),
-                                    (row[NORTH], row[WEST]),
-                                    (row[NORTH], row[EAST]),
-                                    (row[SOUTH], row[EAST])
-                                ])
-
-                shapely_poly = Polygon(polygon)
-                intersection_line = not shapely_poly.disjoint(shapely_line)
-                if intersection_line:
-                    jam_grids.ix[index_c, col] += 1
-
+        except Exception as e:
+            print "Error at Line #{}. Skipping this line: {}".format(i,line)
+            print e
 
     return jam_grids
 
@@ -145,6 +158,6 @@ if __name__ == '__main__':
     jam_grids_p = mergeReduce(mergeMatrix, partial_grid)
     jam_grids_p = compss_wait_on(jam_grids_p)
     jam_grids, events = updateJamGrid(jam_grids_p)
-    
+
     jam_grids.to_csv("output_training.csv",sep=",",index=False,header=False)
     events.to_csv("output_counts.csv",sep=",")

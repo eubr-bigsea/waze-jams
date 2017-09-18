@@ -2,7 +2,7 @@
 
 
 ## 1 - filterByCity.py (optional)
-	
+
 Filters the records of a specific city, for example, Curitiba.
 
 ```
@@ -19,7 +19,7 @@ $python waze.gz waze_curitiba.json curitiba
 
 ## 2 - filterSpatioTemporalData.py (optional)
 
-Filters the records of which are Spatio-Temporal. 
+Filters the records of which are Spatio-Temporal.
 
 
 ```
@@ -39,18 +39,19 @@ The parameters are:
  * ngrid, g:	The organization of the grid. Format: \<n\_lines\> \<n\_columns\>  (default, 50x50)
 
 
-Example: 
+Example:
 
 ```sh
 $ python CreateGrids.py -s /var/workspace/curitiba.shp -g 50 50
-``` 
+```
 
 The output of this program is a csv file, where each line corresponds to a grid and contains its coordinates, the identification number, and the information whether its valid (inside the city).
 
 The image below is an example that corresponds to the grids for the city of Curitiba (only valid grids).
 
-![](./Curitiba_Grids_Distribuition.jpg)
-
+<p align="middle">
+<img  src="Curitiba_Grids_Distribuition.jpg" width="400" alt='Curitiba Grids Distribuition Map' >
+</p>
 
 ## 4 - preprocessing.py (mandatory)
 
@@ -62,7 +63,7 @@ The parameters are:
 
  * input  (-i): The input file path;
  * grids (-g):  The input of the grids list file;
- * window (-w): The window time in seconds to take in count (default, 3600) 
+ * window (-w): The window time in seconds to take in count (default, 3600)
  * numFrag (-f): Number of workers (cores)  
 
 
