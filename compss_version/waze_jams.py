@@ -96,7 +96,7 @@ def GP(script,config,cellnums,output_forecast):
     adj, yg, M, Ntrain, Ntest,last_date = config
     import oct2py
 
-    last_date_i = datetime.datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
+    last_date_i = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
     for cellnum, hypers in cellnums:
         start = time.time()
         last_date = last_date_i
@@ -114,7 +114,7 @@ def GP(script,config,cellnums,output_forecast):
         print "Elapsed {} seconds".format(end-start)
 
 
-    np.savetxt(output_forecast,result, delimiter=',', fmt='%i,%s,%f,%f')
+    np.savetxt(output_forecast,result, delimiter=',', fmt='%s,%s,%s,%s')
 
 @task (output_forecast=FILE_OUT, returns=list)
 def GP_hyper(script,config,cellnums,output_forecast):
@@ -122,7 +122,7 @@ def GP_hyper(script,config,cellnums,output_forecast):
     adj, yg, M, Ntrain, Ntest, last_date = config
     import oct2py
     hypers = []
-    last_date_i = datetime.datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
+    last_date_i = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
     for cellnum in cellnums:
         start = time.time()
         last_date = last_date_i
@@ -142,7 +142,7 @@ def GP_hyper(script,config,cellnums,output_forecast):
         end = time.time()
         print "Elapsed {} seconds".format(end-start)
 
-    np.savetxt(output_forecast, result, delimiter=',', fmt='%i,%s,%f,%f')
+    np.savetxt(output_forecast, result, delimiter=',', fmt='%s,%s,%s,%s')
 
     return hypers
 
@@ -195,7 +195,7 @@ def  waze_jams(trainfile, hypers, Ntrain, script, gridsList, grid, numFrag, outp
         frag_cells = np.array_split(gridsList, numFrag)
     else:
         if grid in gridsList:
-            frag_cells = [[grid]]
+            frag_cells = np.array([[grid]])
         else:
             print "[INFO] - Grid #{} is not valid".format(grid)
             return
