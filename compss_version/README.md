@@ -5,9 +5,9 @@ REQUIREMENTS
 
 In order to use this code, there are two requirements:
 
-	1- Octave (version 4.0.0)	
+	1- Octave (version 4.0.0)
 	2- GPML   (version 3.5)
-	3- Oct2Py (version 4.0.6)	
+	3- Oct2Py (version 4.0.6)
 
 Using different versions may lead to inconsistencies!
 
@@ -15,11 +15,11 @@ GPML must also be in the Octave path, so that its functions can be accessed anyw
 For that:
 
 	1- Enter Octave
-	
+
 	2- Generate the path to GPML using "s=genpath(<full-path-to-GPML>)"
-	
+
 	3- Add the path to Octave path using "addpath(s)"
-	
+
 	4- Save path to ~/.octaverc so that we don't have to do it again using "savepath()"
 
 USAGE
@@ -41,17 +41,19 @@ A sample file has been added to guide formatting new datafiles and testing of th
 #### Example 1: Predicting the traffic in the next hour based in a already created model (to all grids):
 
      runcompss --lang=python $PWD/waze_jams.py \
-               --numFrag 4 --grid -1 --ngrids 2500 --Ntrain -1 \
+               --numFrag 4 --grid -1  --Ntrain -1 \
                --trainfile "/var/workspace/compss_version/sample.txt" \
+               --gridslist '/var/workspace/compss_version/Curitiba_Grids.csv'\
                -o          "/var/workspace/compss_version/"\
                --script    "/var/workspace/compss_version/runGP.m" \
-               --hypers    "/var/workspace/compss_version/compss_version/" 
+               --hypers    "/var/workspace/compss_version/compss_version/"
 
 #### Example 2: Creating a model and predicting the traffic in the next hour (to all grids):
 
      runcompss --lang=python $PWD/waze_jams.py \
-               --numFrag 4 --grid -1 --ngrids 2500 --Ntrain -1\
+               --numFrag 4 --grid -1  --Ntrain -1\
                --trainfile "/var/workspace/compss_version/sample.txt" \
+               --gridslist '/var/workspace/compss_version/Curitiba_Grids.csv'\
                -o          "/var/workspace/compss_version/" \
                --script    "/var/workspace/compss_version/trainAndRunGP.m"
 
@@ -63,7 +65,7 @@ Where:
 
   * trainfile, -t: Filename of the training set;
   * numFrag, -f:   The number of cores;
-  * ngrids, -n:    Number of grids. (default, 2500);
+  * gridslist, -l:   File with the grids list.
   * grid, -g:      The number of a cell grid (1 <= N <= ngrids) or -1 to test all cells in parallel;
   * Ntrain, -s:    Size of Training Set. -1 to use all training set. (default, -1);
   * script, -r:    File path to the script to the second stage (runGP or trainAndRunGP);
