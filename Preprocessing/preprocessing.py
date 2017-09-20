@@ -159,5 +159,5 @@ if __name__ == '__main__':
     jam_grids_p = compss_wait_on(jam_grids_p)
     jam_grids, events = updateJamGrid(jam_grids_p)
 
-    jam_grids.to_csv("output_training.csv",sep=",",index=False,header=False)
+    jam_grids.to_csv("output_training.csv",sep=",",index=True,header=False)
     events.to_csv("output_counts.csv",sep=",")

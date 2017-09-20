@@ -11,6 +11,7 @@ from pycompss.functions.data   import chunks
 
 import time
 import numpy as np
+from datetime import datetime, timedelta
 
 @task (filename = FILE_IN, returns = list)
 def prepare(filename, Ntrain):
@@ -18,16 +19,30 @@ def prepare(filename, Ntrain):
     Forming adjacency-related covariate: proportion of jams on neighboring cells
     """
 
-    np.set_printoptions(threshold=np.nan)
-    result = {}
+    #np.set_printoptions(threshold=np.nan)
+    #result = {}
 
     start = time.time()
 
-    ytab = np.loadtxt(filename, delimiter=',')
-
+    ytab = np.loadtxt(filename, delimiter=',', dtype=str)
     N, M =  ytab.shape
-    N = int(N)
+    #N = int(N)
     print "[{} {}]".format(N,M)
+
+    if Ntrain == -1:
+        Ntrain = N
+        Ntest  = 1
+        last_date = ytab[-1,0]
+    else:
+        if Ntrain>N:
+            print 'Dataset has too few instances!'
+            Ntrain = N
+        Ntest = N - Ntrain + 1
+        last_date = ytab[Ntrain-1,0]
+
+
+    ytab = ytab[:, 1:].astype(int)
+    M-=1
 
     #cria uma nova matriz por linha
     sqrt_M = int(np.sqrt(M))
@@ -69,33 +84,29 @@ def prepare(filename, Ntrain):
 
     adj = adj.ravel()
     yg  = [ y*2-1 for y in yg.ravel()] #Fixing labels to be +/- 1
-    if Ntrain == -1:
-        Ntrain = N
-        Ntest  = 1
-    else:
-        if Ntrain>N:
-            print 'Dataset has too few instances!'
-            Ntrain = N
-        Ntest = N - Ntrain + 1
+
 
     end = time.time()
     print "Elapsed {} seconds".format(end-start)
-    return [adj, yg, M, Ntrain, Ntest]
+    return [adj, yg, M, Ntrain, Ntest, last_date]
 
 @task (output_forecast=FILE_OUT)
 def GP(script,config,cellnums,output_forecast):
     result = []
-    adj, yg, M, Ntrain, Ntest = config
+    adj, yg, M, Ntrain, Ntest,last_date = config
     import oct2py
 
+    last_date_i = datetime.datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
     for cellnum, hypers in cellnums:
         start = time.time()
+        last_date = last_date_i
         print "Predicting the next hour of the grid #{}".format(cellnum)
         try:
             result_i  = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest, hypers)
             prediction =  result_i['Forecasts']
             for p in prediction:
-                result.append([cellnum,  p[0], p[1] ])
+                last_date+= timedelta(hours=1)
+                result.append([cellnum, str(last_date),p[0], p[1] ])
         except Exception as e:
             print "[ERROR] - Error predicting the grid #",str(cellnum)
             print e
@@ -103,22 +114,25 @@ def GP(script,config,cellnums,output_forecast):
         print "Elapsed {} seconds".format(end-start)
 
 
-    np.savetxt(output_forecast,result, delimiter=',', fmt='%i,%f,%f')
+    np.savetxt(output_forecast,result, delimiter=',', fmt='%i,%s,%f,%f')
 
 @task (output_forecast=FILE_OUT, returns=list)
 def GP_hyper(script,config,cellnums,output_forecast):
     result = []
-    adj, yg, M, Ntrain, Ntest = config
+    adj, yg, M, Ntrain, Ntest, last_date = config
     import oct2py
     hypers = []
+    last_date_i = datetime.datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
     for cellnum in cellnums:
         start = time.time()
+        last_date = last_date_i
         print "Creating the model and predicting the next hour of the grid #{}".format(cellnum)
         try:
             result_i   = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest)
             prediction = result_i['Forecasts']
             for p in prediction:
-                result.append([cellnum,  p[0], p[1] ])
+                last_date+= timedelta(hours=1)
+                result.append([cellnum, str(last_date) ,p[0], p[1] ])
             r = np.insert(result_i['hyp'].flatten(), 0, cellnum)
             hypers.append(r)
         except Exception as e:
@@ -128,7 +142,7 @@ def GP_hyper(script,config,cellnums,output_forecast):
         end = time.time()
         print "Elapsed {} seconds".format(end-start)
 
-    np.savetxt(output_forecast, result, delimiter=',', fmt='%i,%f,%f')
+    np.savetxt(output_forecast, result, delimiter=',', fmt='%i,%s,%f,%f')
 
     return hypers
 

@@ -85,7 +85,7 @@ date
 
 This application creates the following three files:
 
-1. output\_events.csv:	The number of events recorded at each time point
+1. output\_counts.csv:	The number of events recorded at each time point;
 2. output\_training.csv: The output of the application itself. This file will serve as the entry for the model.
 
 
