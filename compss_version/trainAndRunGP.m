@@ -1,6 +1,6 @@
 
 function result = trainAndRunGP (adj, yg, M, cellnum, Ntrain, Ntest)
-	
+
 	%  Defining prior structure
 	covft 	= {@covSum, {@covSEiso, @covPeriodic}};													% temporal components
 	covfa 	= {@covSum, {@covConst, @covLINiso}};														% adjacency component
@@ -29,7 +29,7 @@ function result = trainAndRunGP (adj, yg, M, cellnum, Ntrain, Ntest)
 	hyp 	 = opt.cov;
 
 	disp(['Estimating future probability of traffic jams...']);
-	% Estimating future probability of traffic jams
+	%Estimating future probability of traffic jams
 	yhat = zeros(Ntest, 1);
 	yvar = zeros(Ntest, 1);
 	for (tt = 1 : Ntest)

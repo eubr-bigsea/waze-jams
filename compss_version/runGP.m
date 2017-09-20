@@ -22,13 +22,11 @@ function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
 	y_tab 	= reshape(yg, M,  Ntrain + Ntest - 1);
 	yg 			= y_tab(cellnum, :)';
 
-	%disp(['Hyperparameter optimization...']);
+	disp(['Hyperparameter optimization...']);
 	% Hyperparameter optimization
 	xtrain = [ (1:Ntrain)' adj(1:Ntrain) ];
 	ytrain = yg(1:Ntrain);
-	%opt 	 = minimize(hyp, @gp, -100, infm, meanf, covf, likf, xtrain, ytrain);
-	%hyp 	 = opt.cov;
-
+	
 	disp(['Estimating future probability of traffic jams...']);
 	% Estimating future probability of traffic jams
 	yhat = zeros(Ntest, 1);

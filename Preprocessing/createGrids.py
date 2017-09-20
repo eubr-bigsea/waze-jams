@@ -60,10 +60,10 @@ def CheckPointInPolygon(grids,sf):
                         ])
 
         if shp_geom.disjoint(grid):
-            grids[i].append(False)
+            grids[i].append(0)
 
         else:
-            grids[i].append(True)
+            grids[i].append(1)
             # polygons.append(str(grid))
 
     # f = open('output_grids_qgis.csv','w')

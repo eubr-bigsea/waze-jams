@@ -23,7 +23,7 @@ def prepare(filename, Ntrain):
 
     start = time.time()
 
-    ytab = np.loadtxt(filename, delimiter=' ')
+    ytab = np.loadtxt(filename, delimiter=',')
 
     N, M =  ytab.shape
     N = int(N)
@@ -67,8 +67,8 @@ def prepare(filename, Ntrain):
             adj[:,ii,jj] = map(lambda x: x/c, adj[:,ii,jj])
 
 
-    adj    = adj.ravel()
-    yg     = [ y*2-1 for y in yg.ravel()] #Fixing labels to be +/- 1
+    adj = adj.ravel()
+    yg  = [ y*2-1 for y in yg.ravel()] #Fixing labels to be +/- 1
     if Ntrain == -1:
         Ntrain = N
         Ntest  = 1
@@ -82,44 +82,74 @@ def prepare(filename, Ntrain):
     print "Elapsed {} seconds".format(end-start)
     return [adj, yg, M, Ntrain, Ntest]
 
-@task (returns = list)
-def GP(script,config,cellnums,train_op):
+@task (output_forecast=FILE_OUT)
+def GP(script,config,cellnums,output_forecast):
     result = []
     adj, yg, M, Ntrain, Ntest = config
     import oct2py
-    if not train_op:
-        for cellnum in cellnums:
-            if cellnum < M:
-                start = time.time()
-                print "Creating the model and predicting the next hour of the grid #{}".format(cellnum)
-                result_i  = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest)
-                result.append([cellnum, result_i ])
-                end = time.time()
-                print "Elapsed {} seconds".format(end-start)
-    else:
-        for cellnum, hypers in cellnums:
-            if cellnum < M:
-                start = time.time()
-                print "Predicting the next hour of the grid #{}".format(cellnum)
-                result_i  = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest, hypers)
-                result.append([cellnum, result_i ])
-                end = time.time()
-                print "Elapsed {} seconds".format(end-start)
 
-    return result
+    for cellnum, hypers in cellnums:
+        start = time.time()
+        print "Predicting the next hour of the grid #{}".format(cellnum)
+        try:
+            result_i  = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest, hypers)
+            prediction =  result_i['Forecasts']
+            for p in prediction:
+                result.append([cellnum,  p[0], p[1] ])
+        except Exception as e:
+            print "[ERROR] - Error predicting the grid #",str(cellnum)
+            print e
+        end = time.time()
+        print "Elapsed {} seconds".format(end-start)
+
+
+    np.savetxt(output_forecast,result, delimiter=',', fmt='%i,%f,%f')
+
+@task (output_forecast=FILE_OUT, returns=list)
+def GP_hyper(script,config,cellnums,output_forecast):
+    result = []
+    adj, yg, M, Ntrain, Ntest = config
+    import oct2py
+    hypers = []
+    for cellnum in cellnums:
+        start = time.time()
+        print "Creating the model and predicting the next hour of the grid #{}".format(cellnum)
+        try:
+            result_i   = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest)
+            prediction = result_i['Forecasts']
+            for p in prediction:
+                result.append([cellnum,  p[0], p[1] ])
+            r = np.insert(result_i['hyp'].flatten(), 0, cellnum)
+            hypers.append(r)
+        except Exception as e:
+            print "[ERROR] - Error predicting the grid #",str(cellnum)
+            print e
+
+        end = time.time()
+        print "Elapsed {} seconds".format(end-start)
+
+    np.savetxt(output_forecast, result, delimiter=',', fmt='%i,%f,%f')
+
+    return hypers
+
+
 
 @task (returns = list)
 def mergelists(list1,list2):
     return list1+list2
 
 def load_hypers(hypers,frag_cells):
+    hyper = np.loadtxt(hypers, delimiter=',', dtype=float)
+    frag_cells = frag_cells.tolist()
     for i in range(len(frag_cells)):
-        hyper = np.loadtxt("hypers_{}.txt".format(frag_cells[i]), delimiter=' ', dtype=float)
-        hyper = hyper.reshape((len(hyper), 1))
-        frag_cells[i] = [frag_cells[i], hyper]
+        grid = frag_cells[i]
+        row = hyper[:,1:][hyper[:, 0] == grid][0]
+        row = row.reshape((7, 1))
+        frag_cells[i] = [grid, row]
+
     return frag_cells
 
-def  waze_jams(trainfile, hypers, Ntrain, script, ngrids, grid, numFrag, output):
+def  waze_jams(trainfile, hypers, Ntrain, script, gridsList, grid, numFrag, output):
     """
     prepare():
         It contains both the data to be used for hyperparameter learning and
@@ -139,39 +169,38 @@ def  waze_jams(trainfile, hypers, Ntrain, script, ngrids, grid, numFrag, output)
         hyperparameters.
 
     """
+
     import time
     timestr = str(time.strftime("%Y%m%d_%Hh"))
-
+    gridsList = np.loadtxt(gridsList, delimiter=',', dtype=(int,int), skiprows=1, usecols = (4,5))
+    gridsList = gridsList[:,0][gridsList[:, 1] == 1]
+    print "[INFO] - {} valid grids".format(len(gridsList))
     config = prepare(trainfile, Ntrain)
-    
+
     if grid == -1:
-        frag_cells = np.array_split(np.arange(1,ngrids+1), numFrag)
-        if len(hypers)>0:
-            frag_cells    = [load_hypers(hypers,frag_cells[i]) for i in range(numFrag)]
-            partialResult = [GP(script, config, frag, True ) for frag  in frag_cells ]
-        else:
-            partialResult = [GP(script, config, frag, False) for frag  in frag_cells ]
-        results       = mergeReduce(mergelists,partialResult)
+        frag_cells = np.array_split(gridsList, numFrag)
     else:
-        frag_cells = [grid]
-        if len(hypers)>0:
-            frag_cells = load_hypers(hypers, frag_cells)
-            results  = GP(script, config, frag_cells, True)
+        if grid in gridsList:
+            frag_cells = [[grid]]
         else:
-            results  = GP(script, config, frag_cells, False)
+            print "[INFO] - Grid #{} is not valid".format(grid)
+            return
 
+    output_forecast = ['{}forecasts_part{}_{}.txt'.format(output,f,timestr) for f in range(len(frag_cells))]
 
-    from pycompss.api.api import compss_wait_on
-    results = compss_wait_on(results)
-    for r in results:
-        cellnum   = r[0]
-        print cellnum
-        forecasts = r[1]['Forecasts']
-        hypers    = r[1]['hyp']
-        print np.array(forecasts).shape
-        print np.array(hypers).shape
-        np.savetxt('forecasts_{}_{}.txt'.format(cellnum,timestr), forecasts, delimiter=',', fmt='%f')
-        np.savetxt('hypers_{}.txt'.format(cellnum),    hypers,    delimiter=',', fmt='%f')
+    if len(hypers)>0:
+        frag_cells    = [load_hypers(hypers,frag_cells[i]) for i in range(len(frag_cells))]
+        for f  in range(len(frag_cells)):
+            GP(script, config, frag_cells[f],  output_forecast[f])
+    else:
+        output_hyper  = [GP_hyper(script, config, frag_cells[f],  output_forecast[f]) for f  in range(len(frag_cells))]
+        results       = mergeReduce(mergelists,output_hyper)
+
+        from pycompss.api.api import compss_wait_on
+        results = compss_wait_on(results)
+        np.savetxt( '{}hypers_{}.txt'.format(output,timestr),
+                    np.asarray(results), delimiter=',',
+                    fmt="%i,%f,%f,%f,%f,%f,%f,%f")
 
 
 if __name__ == "__main__":
@@ -183,8 +212,8 @@ if __name__ == "__main__":
     p.add_argument('-g','--grid',     required=False,help='Number of a cell grid (1 <= N <= ngrid), -1 to all.', type=int,  default=-1)
     p.add_argument('-s','--Ntrain',   required=True, help='Size of Training Set. -1 to use all training set. (default, -1)', type=int, default=-1)
     p.add_argument('-f','--numFrag',  required=False,help='Number of cores', type=int,  default=4)
-    p.add_argument('-n','--ngrids',   required=False,help='Number of grids. (default, 2500)', type=int, default=2500)
-    p.add_argument('-p','--hypers',   required=False,help='Path of the previous hyperparameters.', type=str, default='')
+    p.add_argument('-l','--gridslist',required=True, help='File with the grids list.')
+    p.add_argument('-p','--hypers',   required=False,help='File of the previous hyperparameters.', type=str, default='')
     p.add_argument('-o','--output',   required=True, help='Output file directory')
     arg = vars(p.parse_args())
 
@@ -192,7 +221,7 @@ if __name__ == "__main__":
     hypers          = arg['hypers']
     script          = arg['script']
     output          = arg['output']
-    ngrids          = arg['ngrids']
+    gridsList       = arg['gridslist']
     grid            = arg['grid']
     Ntrain          = arg['Ntrain']
     numFrag         = arg['numFrag']
@@ -202,14 +231,14 @@ if __name__ == "__main__":
          - hypers:          {}
          - Training size:   {}
          - script:          {}
-         - Number of grids: {}
+         - Grids File:      {}
          - grid:            {}
          - numFrag:         {}
          - Output Path:     {}
 
-    """.format(trainfile, hypers, Ntrain, script,ngrids, grid, numFrag, output)
+    """.format(trainfile, hypers, Ntrain, script,gridsList, grid, numFrag, output)
 
     start = time.time()
-    waze_jams(trainfile, hypers, Ntrain, script, ngrids, grid, numFrag, output)
+    waze_jams(trainfile, hypers, Ntrain, script, gridsList, grid, numFrag, output)
     end = time.time()
     print "Elapsed {} seconds".format(int(end-start))

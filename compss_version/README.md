@@ -49,7 +49,7 @@ A sample file has been added to guide formatting new datafiles and testing of th
 
 #### Example 2: Creating a model and predicting the traffic in the next hour (to all grids):
 
-     runcompss -g --log_level=info --lang=python $PWD/waze_jams.py \
+     runcompss --lang=python $PWD/waze_jams.py \
                --numFrag 4 --grid -1 --ngrids 2500 --Ntrain -1\
                --trainfile "/var/workspace/compss_version/sample.txt" \
                -o          "/var/workspace/compss_version/" \
