@@ -19,14 +19,11 @@ def prepare(filename, Ntrain):
     Forming adjacency-related covariate: proportion of jams on neighboring cells
     """
 
-    #np.set_printoptions(threshold=np.nan)
-    #result = {}
-
     start = time.time()
 
     ytab = np.loadtxt(filename, delimiter=',', dtype=str)
     N, M =  ytab.shape
-    #N = int(N)
+
     print "[{} {}]".format(N,M)
 
     if Ntrain == -1:
