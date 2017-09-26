@@ -8,7 +8,7 @@ import re
 import pandas as pd
 import numpy as np
 import shapefile
-from geopy.distance import great_circle
+from math import atan, tan, sin, cos, pi, sqrt, atan2, asin, radians
 from shapely.geometry import shape,Polygon
 
 WEST  = 0
@@ -22,8 +22,8 @@ def CreateGrids(ngrid, bounds):
     div_y =  np.sqrt((bounds[NORTH] - bounds[SOUTH])**2) /ngrid[0]
     div_x =  np.sqrt((bounds[EAST] - bounds[WEST])**2) /ngrid[1]
 
-    distance_y = great_circle((bounds[NORTH], 0), (bounds[SOUTH], 0)).meters/ngrid[0]
-    distance_x = great_circle((bounds[EAST], 0), (bounds[WEST], 0)).meters/ngrid[1]
+    distance_y = great_circle((bounds[NORTH], 0), (bounds[SOUTH], 0))/ngrid[0]
+    distance_x = great_circle((bounds[EAST], 0), (bounds[WEST], 0))/ngrid[1]
 
     pos_y = bounds[SOUTH]
     pos_x = bounds[WEST]
@@ -50,7 +50,6 @@ def CheckPointInPolygon(grids,sf):
     first = feature.shape.__geo_interface__
     shp_geom = shape(first)
 
-    # polygons =[]
     for i, g in enumerate(grids):
 
         grid = Polygon([ (g[WEST],g[SOUTH]),
@@ -64,15 +63,37 @@ def CheckPointInPolygon(grids,sf):
 
         else:
             grids[i].append(1)
-            # polygons.append(str(grid))
 
-    # f = open('output_grids_qgis.csv','w')
-    # for p in polygons:
-    #     f.write(p+'\n')
-    # f.close()
     return grids
 
 
+def great_circle(a, b):
+    """
+        The great-circle distance or orthodromic distance is the shortest
+        distance between two points on the surface of a sphere, measured
+        along the surface of the sphere (as opposed to a straight line
+        through the sphere's interior).
+
+        :Note: use cython in the future
+        :returns: distance in meters.
+    """
+
+    EARTH_RADIUS = 6371.009
+    lat1, lng1 = radians(a[0]), radians(a[1])
+    lat2, lng2 = radians(b[0]), radians(b[1])
+
+    sin_lat1, cos_lat1 = sin(lat1), cos(lat1)
+    sin_lat2, cos_lat2 = sin(lat2), cos(lat2)
+
+    delta_lng = lng2 - lng1
+    cos_delta_lng, sin_delta_lng = cos(delta_lng), sin(delta_lng)
+
+    d = atan2(sqrt((cos_lat2 * sin_delta_lng) ** 2 +
+                   (cos_lat1 * sin_lat2 -
+                    sin_lat1 * cos_lat2 * cos_delta_lng) ** 2),
+              sin_lat1 * sin_lat2 + cos_lat1 * cos_lat2 * cos_delta_lng)
+
+    return (EARTH_RADIUS * d)*1000
 
 if __name__ == '__main__':
     import argparse

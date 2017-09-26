@@ -94,7 +94,6 @@ This application creates the following three files:
 
 ```
 Shapely == 1.6.1
-geopy == 1.11.0
 numpy == 1.11.0
 pandas == 0.20.3
 pyshp == 1.2.11
