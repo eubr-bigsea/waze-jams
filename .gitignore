@@ -1,0 +1,15 @@
+*.gz
+gpml-matlab-v4.0-2016-10-19/
+*.zip
+lucas/
+
+*.pyc
+execs/
+*.mat
+log/*
+*.txt
+*.sh
+*workspace
+
+hypers*
+forecasts*
