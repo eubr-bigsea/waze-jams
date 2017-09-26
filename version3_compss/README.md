@@ -31,7 +31,7 @@ The proposed model uses spatio-temporal data. On other words, it assumes we have
 
 To generate the configuration file, one must provide a dataset as input. To avoid passing 3D grids, which may difficult to format correctly, this training set must consist of a Nx(M^2) matrix, where N is the number of observations per cell (remember: each observation corresponds to a moment in time). Therefore, each collum corresponds to a spatial grid cell and the values on each collum are observations associated with the corresponding cell. Collums are also expected to be ordered such that row-wise. On the other hand, the first M collumns are associated with the first row of the MxM spatial grid, the next M collumns are associated with the second row, an so on.
 
-The model output will return two items for each cell, forecasts and hypers. The first item contains a Tx2 matrix with predictive mean and variance, where T is the number of time intervals required for testing. Predictions are in the interval [-1,+1], where predictions closer to -1 indicate greater probability of being associated with label -1 and predictions closer to +1 indicate the opposite scenario. These predictions can be turned into probabilities by turning them into the interval [0,1] (by summing 1 and then diving them by 2). The second consists of a vector with learned hyperparameters.
+The model output will return two items for each cell, forecasts and hypers. The first item contains a Tx2 matrix with predictive mean and variance, where T is the number of time intervals required for testing. Predictions are in the interval [0,1]. The second file, hypers's file, consists of a vector with learned hyperparameters.
 
 DEMO
 ----
