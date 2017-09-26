@@ -36,7 +36,7 @@ The model output will return two items for each cell, forecasts and hypers. The 
 DEMO
 ----
 
-A sample file has been added to guide formatting new datafiles and testing of the code. The file sample.txt contains data of a 50x50 spatial grid with hourly observations for 28 days (on a total of 672 observations per grid cell).
+A sample file has been added to guide formatting new datafiles and testing of the code. The file train\_20160906\_04\_20160920\_04.txt contains data of a 50x50 spatial grid with hourly observations for 14 days and 1 hour (on a total of 337 observations per grid cell).
 
 #### Example 1: Predicting the traffic in the next hour based in a already created model (to all grids):
 
