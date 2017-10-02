@@ -42,20 +42,20 @@ A sample file has been added to guide formatting new datafiles and testing of th
 
      runcompss --lang=python $PWD/waze_jams.py \
                --numFrag 4 --grid -1  --Ntrain -1 \
-               --trainfile "/var/workspace/compss_version/sample.txt" \
-               --gridslist '/var/workspace/compss_version/Curitiba_Grids.csv'\
-               -o          "/var/workspace/compss_version/"\
-               --script    "/var/workspace/compss_version/runGP.m" \
-               --hypers    "/var/workspace/compss_version/compss_version/"
+               --trainfile "/var/workspace/version3_compss/train_20160906_04_20160920_04.txt" \
+               --gridslist '/var/workspace/Preprocessing/Curitiba_Grids.csv'\
+               -o          "/var/workspace/version3_compss/"\
+               --script    "/var/workspace/version3_compss/runGP.m" \
+               --hypers    "/var/workspace/version3_compss/compss_version/"
 
 #### Example 2: Creating a model and predicting the traffic in the next hour (to all grids):
 
      runcompss --lang=python $PWD/waze_jams.py \
                --numFrag 4 --grid -1  --Ntrain -1\
-               --trainfile "/var/workspace/compss_version/sample.txt" \
-               --gridslist '/var/workspace/compss_version/Curitiba_Grids.csv'\
-               -o          "/var/workspace/compss_version/" \
-               --script    "/var/workspace/compss_version/trainAndRunGP.m"
+               --trainfile "/var/workspace/version3_compss/train_20160906_04_20160920_04.txt" \
+               --gridslist '/var/workspace/Preprocessing/Curitiba_Grids.csv'\
+               -o          "/var/workspace/version3_compss/" \
+               --script    "/var/workspace/version3_compss/trainAndRunGP.m"
 
 
 
