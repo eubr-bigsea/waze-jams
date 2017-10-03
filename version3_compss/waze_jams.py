@@ -7,7 +7,6 @@ __email__  = "lucasmsp@gmail.com"
 from pycompss.api.task         import task
 from pycompss.api.parameter    import *
 from pycompss.functions.reduce import mergeReduce
-from pycompss.functions.data   import chunks
 
 import time
 import numpy as np
@@ -41,7 +40,6 @@ def prepare(filename, Ntrain):
     ytab = ytab[:, 1:].astype(int)
     M-=1
 
-    #cria uma nova matriz por linha
     sqrt_M = int(np.sqrt(M))
     yg = ytab.reshape(N, sqrt_M ,sqrt_M )
 
@@ -139,8 +137,11 @@ def GP_hyper(script,config,cellnums,output_forecast):
         end = time.time()
         print "Elapsed {} seconds".format(end-start)
 
-    np.savetxt(output_forecast, result, delimiter=',', fmt='%s,%s,%s,%s')
-
+    if len(result)>0:
+        np.savetxt(output_forecast, result, delimiter=',', fmt='%s,%s,%s,%s')
+    else:
+        np.savetxt(output_forecast,['error'],fmt='%s')
+        
     return hypers
 
 
