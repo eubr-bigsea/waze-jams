@@ -8,19 +8,13 @@ In order to use this code, there are two requirements:
 	1- Octave (version 4.0.0)
 	2- GPML   (version 3.5)
 	3- Oct2Py (version 4.0.6)
+	4- Scipy  (version 0.19.1)
 
 Using different versions may lead to inconsistencies!
 
 GPML must also be in the Octave path, so that its functions can be accessed anywhere.
-For that:
+For that, download the GPML library and put in /opt/gpml (in each machine when running in cluster mode).
 
-	1- Enter Octave
-
-	2- Generate the path to GPML using "s=genpath(<full-path-to-GPML>)"
-
-	3- Add the path to Octave path using "addpath(s)"
-
-	4- Save path to ~/.octaverc so that we don't have to do it again using "savepath()"
 
 USAGE
 -----
