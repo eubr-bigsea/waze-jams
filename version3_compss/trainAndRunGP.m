@@ -1,6 +1,9 @@
 
 function result = trainAndRunGP (adj, yg, M, cellnum, Ntrain, Ntest)
 
+
+	addpath(genpath('/opt/gpml'))
+
 	%  Defining prior structure
 	covft 	= {@covSum, {@covSEiso, @covPeriodic}};													% temporal components
 	covfa 	= {@covSum, {@covConst, @covLINiso}};														% adjacency component

@@ -1,17 +1,20 @@
 
 function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
 
+	addpath(genpath('/opt/gpml'))
+
 	%  Defining prior structure
-	covft 	= {@covSum, {@covSEiso, @covPeriodic}};													% temporal components
-	covfa 	= {@covSum, {@covConst, @covLINiso}};														% adjacency component
-	covf  	= {@covSum, {{@covMask, {1, covft}}, {@covMask, {2, covfa}}}};	% sum over all components
-	%hyp.cov = log([1;1;1;24;1;1;1]);																				% initial guess for hypers
-	meanf   = @meanZero;																										% specification of mean function
-	likf 		= @likLogistic;																									% specification of likelihood function
-	infm    = @infLaplace;																									% Laplace approximation for likelihood function
+	covft 	= {@covSum, {@covSEiso, @covPeriodic}};	% temporal components
+	covfa 	= {@covSum, {@covConst, @covLINiso}}; % adjacency component
+	covf  	= {@covSum, {{@covMask, {1, covft}}, {@covMask, {2, covfa}}}}; % sum over all components
+
+	meanf   = @meanZero; 		% specification of mean function
+	likf 		= @likLogistic; % specification of likelihood function
+	infm    = @infLaplace;  % Laplace approximation for likelihood function
+	
 	Ntrain  = double(Ntrain);
 	Ntest   = double(Ntest);
-	opt.cov	= double(hypers);		%from hypfile
+	opt.cov	= double(hypers);
 	hyp.mean = [];
 	hyp.lik = [];
 
@@ -26,7 +29,7 @@ function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
 	% Hyperparameter optimization
 	xtrain = [ (1:Ntrain)' adj(1:Ntrain) ];
 	ytrain = yg(1:Ntrain);
-	
+
 	disp(['Estimating future probability of traffic jams...']);
 	% Estimating future probability of traffic jams
 	yhat = zeros(Ntest, 1);
