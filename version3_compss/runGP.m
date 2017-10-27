@@ -11,7 +11,7 @@ function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
 	meanf   = @meanZero; 		% specification of mean function
 	likf 		= @likLogistic; % specification of likelihood function
 	infm    = @infLaplace;  % Laplace approximation for likelihood function
-	
+
 	Ntrain  = double(Ntrain);
 	Ntest   = double(Ntest);
 	opt.cov	= double(hypers);
@@ -50,7 +50,7 @@ function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
 	disp(['Storing results']);
 	% Storing results
 	Forecasts = [ yhat yvar ];
-	Forecasts = (Forecasts + 1)/2; % turning them into the interval [0,1]
+	%Forecasts = (Forecasts + 1)/2; % turning them into the interval [0,1]
 
 	result.Forecasts = Forecasts;
 	result.hyp = opt.cov;

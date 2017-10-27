@@ -38,6 +38,9 @@ function result = trainAndRunGP (adj, yg, M, cellnum, Ntrain, Ntest)
 	for (tt = 1 : Ntest)
 			disp(['Predicting instance ' num2str(tt) ' out of ' num2str(Ntest) '...']);
 			Xtest = [ Ntrain+tt mean(adj(mod(tt-1,24)+1:24:Ntrain+tt-1)) ];								  % forming test instance
+			size(xtrain)
+			size(ytrain)
+			size(Xtest)
 			[yhat(tt) yvar(tt)] = gp(opt, infm, meanf, covf, likf, xtrain, ytrain, Xtest);	% forecasting test instance
 			if (tt < Ntest)
 				xtrain = [ xtrain; [ Ntrain+tt adj(Ntrain+tt) ] ];					% updating training set
@@ -51,7 +54,7 @@ function result = trainAndRunGP (adj, yg, M, cellnum, Ntrain, Ntest)
 	disp(['Storing results']);
 	% Storing results
 	Forecasts = [ yhat yvar ];
-	Forecasts = (Forecasts + 1)/2; % turning them into the interval [0,1]
+	%Forecasts = (Forecasts + 1)/2; % turning them into the interval [0,1]
 
 	result.Forecasts = Forecasts;
 	result.hyp = hyp;

@@ -99,9 +99,15 @@ def GP(script,config,cellnums,output_forecast):
         try:
             result_i  = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest, hypers)
             prediction =  result_i['Forecasts']
-            for p in prediction:
+            for mu,s2 in prediction:
                 last_date+= timedelta(hours=1)
-                result.append([cellnum, str(last_date),p[0], p[1] ])
+                #append the  95% confidence interval
+                std = np.sqrt(s2)
+                ci_95 = [mu-2*std, mu+2*std]
+                ci_95 = np.clip(ci_95, -1,1)
+                percentage = (mu+1)/2
+                result.append([cellnum, str(last_date),mu,s2, ci_95[0], ci_95[1], percentage ])
+
         except Exception as e:
             print "[ERROR] - Error predicting the grid #",str(cellnum)
             print e
@@ -109,7 +115,7 @@ def GP(script,config,cellnums,output_forecast):
         print "Elapsed {} seconds".format(end-start)
 
 
-    np.savetxt(output_forecast,result, delimiter=',', fmt='%s,%s,%s,%s')
+    np.savetxt(output_forecast,result, delimiter=',' , fmt='%s')
 
 @task (output_forecast=FILE_OUT, returns=list)
 def GP_hyper(script,config,cellnums,output_forecast):
@@ -118,6 +124,7 @@ def GP_hyper(script,config,cellnums,output_forecast):
     import oct2py
     hypers = []
     last_date_i = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
+
     for cellnum in cellnums:
         start = time.time()
         last_date = last_date_i
@@ -125,9 +132,14 @@ def GP_hyper(script,config,cellnums,output_forecast):
         try:
             result_i   = oct2py.octave.feval(script, adj, yg, M, cellnum, Ntrain, Ntest)
             prediction = result_i['Forecasts']
-            for p in prediction:
+            for mu,s2 in prediction:
                 last_date+= timedelta(hours=1)
-                result.append([cellnum, str(last_date) ,p[0], p[1] ])
+                #append the  95% confidence interval
+                std = np.sqrt(s2)
+                ci_95 = [mu-2*std, mu+2*std]
+                ci_95 = np.clip(ci_95, -1,1)
+                percentage = (mu+1)/2
+                result.append([cellnum, str(last_date),mu,s2, ci_95[0], ci_95[1], percentage ])
             r = np.insert(result_i['hyp'].flatten(), 0, cellnum)
             hypers.append(r)
         except Exception as e:
@@ -138,10 +150,10 @@ def GP_hyper(script,config,cellnums,output_forecast):
         print "Elapsed {} seconds".format(end-start)
 
     if len(result)>0:
-        np.savetxt(output_forecast, result, delimiter=',', fmt='%s,%s,%s,%s')
+        np.savetxt(output_forecast, result, delimiter=',' , fmt='%s')
     else:
         np.savetxt(output_forecast,['error'],fmt='%s')
-        
+
     return hypers
 
 
