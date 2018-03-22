@@ -107,6 +107,8 @@ if __name__ == "__main__":
 
     true = forecasts['True'].values
     pred = forecasts['percentage'].values
+    N_rred = sum(forecasts['True'].values)
+    N_rgreen = N_total - N_rred
     base = os.path.basename(arg['forecast']).replace(".txt", "")
     AUC = plot_ROC(true, pred, base) * 100
     plot_precision_recall(true, pred, base)
@@ -118,7 +120,9 @@ if __name__ == "__main__":
     Number of Grids: {}
     Number of predicted grids w/ traffic jams: {}
     Number of predicted grids w/o traffic jams: {}
+    Number of real grids w/ traffic jams: {}
+    Number of real grids w/o traffic jams: {}
     Accuracy: {:.2f}%
     AUC: {:.2f}%
-    """.format(N_total, N_red, N_green, acc, AUC)
+    """.format(N_total, N_red, N_green, N_rred, N_rgreen, acc, AUC)
     print "*" * 20
