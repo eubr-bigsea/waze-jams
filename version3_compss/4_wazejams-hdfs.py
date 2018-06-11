@@ -14,14 +14,13 @@ from pycompss.api.task import task
 from pycompss.api.parameter import *
 from pycompss.functions.reduce import mergeReduce
 from datetime import datetime, timedelta
-from hdfspycompss.HDFS import HDFS
-from hdfspycompss.Block import Block
 import time
 import numpy as np
+from hdfspycompss.HDFS import HDFS
+from hdfspycompss.Block import Block
 
-HDFS_NAMENODE = 'master'
+HDFS_NAMENODE = 'localhost'
 HDFS_PORT = 9000
-
 
 def prepare(filename, Ntrain):
     """Create adjacency-related covariate: jams's proportion on neighboring."""
@@ -87,110 +86,107 @@ def prepare(filename, Ntrain):
     adj = adj.ravel()
     yg = [y * 2 - 1 for y in yg.ravel()]  # Fixing labels to be +/- 1
 
+    settings = dict()
+    settings['adj'] = adj
+    settings['yg'] = yg
+    settings['M'] = M
+    settings['Ntrain'] = Ntrain
+    settings['Ntest'] = Ntest
+    settings['last_date'] = last_date
+
     end = time.time()
     print "Elapsed {} seconds".format(int(end-start))
-    return [adj, yg, M, Ntrain, Ntest, last_date]
+    return settings
 
 
 @task(returns=list)
-def GP(script, config, cellnums):
+def GP(script, settings, hypers, cellnums):
     """Predict wheater a cell will be traffic jam or not."""
     result = []
-    adj, yg, M, Ntrain, Ntest, last_date = config
+    adj = settings['adj']
+    yg = settings['yg']
+    M = settings['M']
+    Ntrain = settings['Ntrain']
+    Ntest = settings['Ntest']
+    last_date = settings['last_date']
+
     import oct2py
 
-    last_date_i = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
-    for cellnum, hypers in cellnums:
-        start = time.time()
-        last_date = last_date_i
-        print "Predicting the next hour of the grid #{}".format(cellnum)
-        try:
-            result_i = oct2py.octave.feval(script, adj, yg, M,
-                                           cellnum, Ntrain, Ntest, hypers)
-            prediction = result_i['Forecasts']
-            for mu, s2 in prediction:
-                last_date += timedelta(hours=1)
-                # append the  95% confidence interval
-                std = np.sqrt(s2)
-                ci_95 = [mu-2*std, mu+2*std]
-                ci_95 = np.clip(ci_95, -1, 1)
-                percentage = (mu+1)/2
-                row = [cellnum, str(last_date), round(mu, 4),
-                       round(s2, 4), round(ci_95[0], 4), round(ci_95[1], 4),
-                       round(percentage, 4)]
-                result.append(row)
+    last_date = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
 
-        except Exception as e:
-            print "[ERROR] - Error predicting the grid #", str(cellnum)
-            print e
-        end = time.time()
-        print "Elapsed {} seconds".format(int(end-start))
+    start = time.time()
+    print "Predicting jams to grids: #{} to #{}".format(cellnums[0],
+                                                        cellnums[-1])
+
+    result_i = oct2py.octave.feval(script, adj, yg, M,
+                                   Ntrain, Ntest, hypers, cellnums)
+
+    for cellnum, prediction in zip(cellnums, result_i['Forecasts']):
+        mu, s2 = prediction
+        # append the  95% confidence interval
+        std = np.sqrt(s2)
+        ci_95 = [mu-2*std, mu+2*std]
+        ci_95 = np.clip(ci_95, -1, 1)
+        percentage = (mu+1)/2
+        row = [cellnum, str(last_date), round(mu, 4),
+               round(s2, 4), round(ci_95[0], 4), round(ci_95[1], 4),
+               round(percentage, 4)]
+        result.append(row)
+
+    end = time.time()
+    print "Elapsed {} seconds".format(int(end-start))
+
     return [result, []]
 
 
 @task(returns=list)
-def GP_hyper(script, config, cellnums):
+def GP_hyper(script, settings, cellnums):
     """Predict the possibility of traffic jam and update the hyper file."""
-    result = []
-    adj, yg, M, Ntrain, Ntest, last_date = config
+
+    adj = settings['adj']
+    yg = settings['yg']
+    M = settings['M']
+    Ntrain = settings['Ntrain']
+    Ntest = settings['Ntest']
+    last_date = settings['last_date']
+    last_date = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
+
     import oct2py
-    hypers = []
-    last_date_i = datetime.strptime(last_date, "%Y-%m-%d %H:%M:%S")
 
-    for cellnum in cellnums:
-        start = time.time()
-        last_date = last_date_i
-        print "Creating the model and predicting the"
-        " next hour of the grid #{}".format(cellnum)
+    result = []
+    start = time.time()
+    print "Predicting jams to grids: #{} to #{}".format(cellnums[0],
+                                                        cellnums[-1])
 
-        try:
-            result_i = oct2py.octave.feval(script, adj, yg, M,
-                                           cellnum, Ntrain, Ntest)
-            prediction = result_i['Forecasts']
-            for mu, s2 in prediction:
-                last_date += timedelta(hours=1)
-                # append the  95% confidence interval
-                std = np.sqrt(s2)
-                ci_95 = [mu-2*std, mu+2*std]
-                ci_95 = np.clip(ci_95, -1, 1)
-                percentage = (mu+1)/2
-                row = [cellnum, str(last_date), round(mu, 4),
-                       round(s2, 4), round(ci_95[0], 4), round(ci_95[1], 4),
-                       round(percentage, 4)]
-                result.append(row)
-            r = np.insert(result_i['hyp'].flatten(), 0, cellnum)
-            hypers.append(r)
-        except Exception as e:
-            print "[ERROR] - Error predicting the grid #", str(cellnum)
-            print e
+    result_i = oct2py.octave.feval(script, adj, yg, M,
+                                   Ntrain, Ntest, cellnums)
 
-        end = time.time()
-        print "Elapsed {} seconds".format(int(end-start))
+    for cellnum, prediction in zip(cellnums, result_i['Forecasts']):
+        mu, s2 = prediction
+        # append the  95% confidence interval
+        std = np.sqrt(s2)
+        ci_95 = [mu-2*std, mu+2*std]
+        ci_95 = np.clip(ci_95, -1, 1)
+        percentage = (mu+1)/2
+        row = [cellnum, str(last_date), round(mu, 4),
+               round(s2, 4), round(ci_95[0], 4), round(ci_95[1], 4),
+               round(percentage, 4)]
+        result.append(row)
 
+    cellnums = np.array(cellnums).reshape((len(cellnums), 1))
+    hypers = np.hstack((cellnums, result_i['hyp']))
+
+    end = time.time()
+    print "Elapsed {} seconds".format(int(end-start))
     return [result, hypers]
 
 
 @task(returns=list)
 def mergelists(list1, list2):
     """Merge the partial results."""
-    return [list1[0] + list2[0], list1[1] + list2[1]]
-
-
-def load_hypers(hypers, frag_cells):
-    """Read the hyperparameter file."""
-    dfs = HDFS(HDFS_NAMENODE, HDFS_PORT)
-    blk = dfs.findNBlocks(hypers, 1)
-    records = Block(blk[0]).readBlock()
-    hyper = np.loadtxt(records, delimiter=',', dtype=float)
-    frag_cells = frag_cells.tolist()
-    for i in range(len(frag_cells)):
-        IDgrid = frag_cells[i]
-        row = hyper[:, 1:][hyper[:, 0] == IDgrid][0]
-        row = row.reshape((7, 1))
-        frag_cells[i] = [IDgrid, row]
-
-    return frag_cells
-
+    list1[0] = np.concatenate((list1[0], list2[0]), axis=0)
+    list1[1] = np.concatenate((list1[1], list2[1]), axis=0)
+    return list1
 
 def waze_jams(trainfile, hypers, Ntrain, script,
               gridsList, grid, numFrag, output):
@@ -216,8 +212,8 @@ def waze_jams(trainfile, hypers, Ntrain, script,
 
     """
     import time
-    timestr = str(time.strftime("%Y%m%d_%Hh"))
     dfs = HDFS(HDFS_NAMENODE, HDFS_PORT)
+    timestr = str(time.strftime("%Y%m%d_%Hh"))
     blk = dfs.findNBlocks(gridsList, 1)
     records = Block(blk[0]).readBlock()
     gridsList = np.loadtxt(records, delimiter=',',
@@ -232,23 +228,24 @@ def waze_jams(trainfile, hypers, Ntrain, script,
         if grid in gridsList:
             frag_cells = np.array([[grid]])
         else:
-            print "[INFO] - Grid #{} is not valid".format(grid)
-            return
+            raise "[INFO] - Grid #{} is not valid".format(grid)
 
     nfrag = len(frag_cells)
     outputs = [[] for i in range(nfrag)]
     if len(hypers) > 0:
+        blk = dfs.findNBlocks(hypers, 1)
+        records = Block(blk[0]).readBlock()
+        hyper = np.loadtxt(records, delimiter=',', dtype=np.float64)
         # when you inform a hyperparameters's file
         for i in range(nfrag):
-            tmp = load_hypers(hypers, frag_cells[i])
-            outputs[i] = GP(script, config, tmp)
+            tmp_hypers = hyper[np.in1d(hyper[:,0], frag_cells[i])]
+            outputs[i] = GP(script, config, tmp_hypers, frag_cells[i])
     else:
         # when you also need to training the model
         for i in range(nfrag):
             outputs[i] = GP_hyper(script, config, frag_cells[i])
 
     results = mergeReduce(mergelists, outputs)
-
     from pycompss.api.api import compss_wait_on as sync
     results = sync(results)
 
@@ -257,7 +254,7 @@ def waze_jams(trainfile, hypers, Ntrain, script,
         output_hyper = '{}hypers_{}.txt'.format(output, timestr)
         s = StringIO.StringIO()
         np.savetxt(s, np.asarray(results[1]), delimiter=',',
-                   fmt="%i,%f,%f,%f,%f,%f,%f,%f")
+                   fmt="%i,%1.20f,%1.20f,%1.20f,%1.20f,%1.20f,%1.20f,%1.20f")
         dfs.writeBlock(output_hyper, s.getvalue())
 
     s = StringIO.StringIO()
@@ -270,7 +267,7 @@ def waze_jams(trainfile, hypers, Ntrain, script,
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description='Waze-jams - HDFS version')
+    p = argparse.ArgumentParser(description='Waze-jams - PyCompss')
 
     p.add_argument('-t', '--trainfile', required=True,
                    help='Filename of the training set.')
