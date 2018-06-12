@@ -1,4 +1,4 @@
-function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
+function result = runGP (adj, yg, M, Ntrain, Ntest, hypers, cellnums)
 
   addpath(genpath('/opt/gpml'))
 
@@ -14,40 +14,49 @@ function result = runGP (adj, yg, M, cellnum, Ntrain, Ntest, hypers)
   % Load parameters
   Ntrain = double(Ntrain);
   Ntest = double(Ntest);
-  cellnum = double(cellnum)
-  opt.cov	= double(hypers);
+  cellnums = double(cellnums);
+  hypers = double(hypers);
+
+  adj_tab = reshape(adj, M, Ntrain + Ntest - 1);
+  y_tab = reshape(yg, M,  Ntrain + Ntest - 1);
+
+  result.Forecasts = [];
+  result.hyp = [];
 
   hyp.mean = [];
   hyp.lik = [];
-  hyp.cov = opt.cov;  % previous hypers
 
-  disp(['Filtering relevant data...']);
-  adj_tab = reshape(adj, M, Ntrain + Ntest - 1);
-  adj = adj_tab(cellnum, :)';
-  y_tab = reshape(yg, M,  Ntrain + Ntest - 1);
-  yg = y_tab(cellnum, :)';
+  for (c = 1 :columns(cellnums))
 
-  disp(['Hyperparameter optimization...']);
-  xtrain = [ (1:Ntrain)' adj(1:Ntrain) ];
-  ytrain = yg(1:Ntrain);
+    cellnum = cellnums(1,c);
+    disp(['Predicting grid #' num2str(cellnum) ]);
 
-  disp(['Estimating future probability of traffic jams...']);
-  yhat = zeros(Ntest, 1);
-  yvar = zeros(Ntest, 1);
-  for (tt = 1 : Ntest)
-    disp(['Predicting instance ' num2str(tt) ' out of ' num2str(Ntest) '...']);
-    Xtest = [ Ntrain+tt mean(adj(mod(tt-1,24)+1:24:Ntrain+tt-1)) ];  % forming test instance
-    [yhat(tt) yvar(tt)] = gp(hyp, infm, meanf, covf, likf, xtrain, ytrain, Xtest);  % forecasting test instance
-    if (tt < Ntest)
-      xtrain = [ xtrain; [ Ntrain+tt adj(Ntrain+tt) ] ];  % updating training set
-      ytrain = yg(1:Ntrain+tt);  % updating training set
+    hyp.cov = hypers(c, 2:8);  % previous hypers
+
+    % disp(['Filtering relevant data...']);
+    adj = adj_tab(cellnum, :)';
+    yg = y_tab(cellnum, :)';
+
+    % disp(['Hyperparameter optimization...']);
+    xtrain = [ (1:Ntrain)' adj(1:Ntrain) ];
+    ytrain = yg(1:Ntrain);
+
+    % disp(['Estimating future probability of traffic jams...']);
+    yhat = zeros(Ntest, 1);
+    yvar = zeros(Ntest, 1);
+    for (tt = 1 : Ntest)
+      Xtest = [ Ntrain+tt mean(adj(mod(tt-1,24)+1:24:Ntrain+tt-1)) ];  % forming test instance
+      [yhat(tt) yvar(tt)] = gp(hyp, infm, meanf, covf, likf, xtrain, ytrain, Xtest);  % forecasting test instance
+      if (tt < Ntest)
+        xtrain = [ xtrain; [ Ntrain+tt adj(Ntrain+tt) ] ];  % updating training set
+        ytrain = yg(1:Ntrain+tt);  % updating training set
+      end
     end
-  end
 
-  disp(['Storing results']);
-  Forecasts = [ yhat yvar ];
+  % disp(['Storing values'])
   % Forecasts = (Forecasts + 1)/2; % turning them into the interval [0,1]
-  result.Forecasts = Forecasts;
-  result.hyp = hyp;
+  result.Forecasts = [result.Forecasts; yhat yvar];
+
+  end
 
 endfunction
